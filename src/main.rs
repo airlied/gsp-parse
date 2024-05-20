@@ -141,8 +141,6 @@ fn main() -> std::io::Result<()> {
 
     let mut json_output : CJson = Default::default();
 
-    add_file_to_json(&index, &"examples/nvtypes.h".to_string(), &args[1], &mut json_output)?;
-
     println!("{:?}", args[1]);
     for entry in WalkDir::new(&args[1]).into_iter() {
 	let ent = entry.unwrap();
