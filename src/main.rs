@@ -41,6 +41,7 @@ struct CDefine {
 
 #[derive(Serialize, Deserialize, Default)]
 struct CJson {
+    version: String,
     defines: Vec<CDefine>,
     structs: Vec<CStruct>,
 }
@@ -141,18 +142,21 @@ fn main() -> std::io::Result<()> {
 
     let mut json_output : CJson = Default::default();
 
-    println!("{:?}", args[1]);
-    for entry in WalkDir::new(&args[1]).into_iter() {
+    json_output.version = args[1].clone();
+
+    println!("{:?}", args[2]);
+    for entry in WalkDir::new(&args[2]).into_iter() {
 	let ent = entry.unwrap();
 	if !just_headers(&ent) {
 	    continue
 	}
 	let path = ent.path().to_str().unwrap();
 	println!("parsing {:?}", path);
-	add_file_to_json(&index, path, &args[1], &mut json_output)?;
+	add_file_to_json(&index, path, &args[2], &mut json_output)?;
     }
 
-    let file = File::create("out.json")?;
+    let jsonname = args[1].clone() + ".json";
+    let file = File::create(jsonname)?;
     let mut writer = BufWriter::new(file);
     serde_json::to_writer_pretty(&mut writer, &json_output)?;
     writer.flush()?;
