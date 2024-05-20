@@ -43,16 +43,10 @@ struct CJson {
     structs: Vec<CStruct>,
 }
 
-fn main() -> std::io::Result<()> {
-    // Acquire an instance of `Clang`
-    let clang = Clang::new().unwrap();
+fn add_file_to_json(index: Index, path: String, json_output: &mut CJson) -> std::io::Result<()> {
 
-    // Create a new `Index`
-    let index = Index::new(&clang, false, false);
-
-    let mut json_output : CJson = Default::default();
     // Parse a source file into a translation unit
-    let mut parser = index.parser("examples/ctrl0073dp.h");
+    let mut parser = index.parser(path);
     // turn on detailed preprocessing to get defines
     parser.detailed_preprocessing_record(true);
     let tu = parser.parse().unwrap();
@@ -63,7 +57,7 @@ fn main() -> std::io::Result<()> {
         !e.is_builtin_macro() &&
         !e.is_function_like_macro()
     }).collect::<Vec<_>>();
-    
+
     for define_ in defines {
 	let name = define_.get_display_name().unwrap();
 	let mut define_type : CDefineType = CDefineType::UNKNOWN;
@@ -71,7 +65,7 @@ fn main() -> std::io::Result<()> {
 	// filter out the __ ones
 	if name.as_bytes()[0] == '_' as u8 && name.as_bytes()[1] == '_' as u8 {
 	    continue;
-	}	
+	}
 	let tokens = define_.get_range().unwrap().tokenize();
 	// All the interesting ones have 4 tokens.
 	if tokens.len() != 4 {
@@ -86,7 +80,7 @@ fn main() -> std::io::Result<()> {
 	} else if tokens[2].get_spelling() == ":" {
 	    define_type = CDefineType::RANGE;
 	    range = tokens[1].get_spelling().parse().unwrap();
-	    range_end = tokens[3].get_spelling().parse().unwrap();	    
+	    range_end = tokens[3].get_spelling().parse().unwrap();
 	}
 //	for token in tokens {
 //	    println!("{:?}", token.get_spelling());
@@ -108,7 +102,7 @@ fn main() -> std::io::Result<()> {
     // Print information about the structs
     for struct_ in structs {
 	let mut newfields : Vec<CStructField> = Default::default();
-	
+
         for field in struct_.get_children() {
 	    newfields.push(CStructField {
 		ftype: field.get_type().unwrap().get_display_name(),
@@ -120,6 +114,18 @@ fn main() -> std::io::Result<()> {
 	    fields: newfields,
 	});
     }
+    Ok(())
+}
+fn main() -> std::io::Result<()> {
+    // Acquire an instance of `Clang`
+    let clang = Clang::new().unwrap();
+
+    // Create a new `Index`
+    let index = Index::new(&clang, false, false);
+
+    let mut json_output : CJson = Default::default();
+
+    add_file_to_json(index, "examples/ctrl0073dp.h".to_string(), &mut json_output)?;
 
     let file = File::create("out.json")?;
     let mut writer = BufWriter::new(file);
