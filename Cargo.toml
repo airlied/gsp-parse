@@ -6,6 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+walkdir = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 clang = { git = "https://github.com/airlied/clang-rs/", features = ["clang_3_9"] }

@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use std::fs::File;
 use std::io::{BufWriter, Write};
+use walkdir::{DirEntry, WalkDir};
 
 #[derive(Serialize, Deserialize)]
 struct CStructField {
@@ -44,12 +45,14 @@ struct CJson {
     structs: Vec<CStruct>,
 }
 
-fn add_file_to_json(index: &Index, path: &String, json_output: &mut CJson) -> std::io::Result<()> {
+fn add_file_to_json(index: &Index, path: &str, inc_path: &String, json_output: &mut CJson) -> std::io::Result<()> {
 
     // Parse a source file into a translation unit
     let mut parser = index.parser(path);
     // turn on detailed preprocessing to get defines
+    let args = ["-I".to_string().to_owned() + inc_path];
     parser.detailed_preprocessing_record(true);
+    parser.arguments(&args);
     let tu = parser.parse().unwrap();
 
     // Get the declearations?
@@ -119,6 +122,14 @@ fn add_file_to_json(index: &Index, path: &String, json_output: &mut CJson) -> st
     }
     Ok(())
 }
+
+fn just_headers(entry: &DirEntry) -> bool {
+    entry.file_name()
+         .to_str()
+         .map(|s| s.ends_with(".h"))
+         .unwrap_or(false)
+}
+
 fn main() -> std::io::Result<()> {
     let args: Vec<String> = env::args().collect();
 
@@ -130,9 +141,17 @@ fn main() -> std::io::Result<()> {
 
     let mut json_output : CJson = Default::default();
 
-    for arg in &args[1..] {
-	println!("parsing {:?}", arg);
-	add_file_to_json(&index, arg, &mut json_output)?;
+    add_file_to_json(&index, &"examples/nvtypes.h".to_string(), &args[1], &mut json_output)?;
+
+    println!("{:?}", args[1]);
+    for entry in WalkDir::new(&args[1]).into_iter() {
+	let ent = entry.unwrap();
+	if !just_headers(&ent) {
+	    continue
+	}
+	let path = ent.path().to_str().unwrap();
+	println!("parsing {:?}", path);
+	add_file_to_json(&index, path, &args[1], &mut json_output)?;
     }
 
     let file = File::create("out.json")?;

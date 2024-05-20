@@ -1,6 +1,6 @@
 #! /bin/sh
 
 # pass the nvidia repo
-# ~/devel/open-gpu-kernel-modules/src/common/sdk/nvidia/inc/ctrl/
+# ~/devel/open-gpu-kernel-modules/src/common/sdk/nvidia/inc/
 
-find $1 -name "*.h" | xargs cargo run
+cargo run -- $1

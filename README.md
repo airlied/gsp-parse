@@ -1,7 +1,7 @@
 
 This can be run by using:
 
-sh src/runit.sh ~/devel/open-gpu-kernel-modules/src/common/sdk/nvidia/inc/ctrl/
+sh src/runit.sh ~/devel/open-gpu-kernel-modules/src/common/sdk/nvidia/inc/
 
 This will replace out.json which is a complete json representing the headers.
 
