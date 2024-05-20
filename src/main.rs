@@ -14,6 +14,8 @@ use walkdir::{DirEntry, WalkDir};
 struct CStructField {
     ftype: String,
     name: String,
+    is_array: bool,
+    size: u32,
 }
 
 #[derive(Serialize, Deserialize, Default)]
@@ -108,8 +110,20 @@ fn add_file_to_json(index: &Index, path: &str, inc_path: &String, json_output: &
 	let mut newfields : Vec<CStructField> = Default::default();
 
         for field in struct_.get_children() {
+	    let mut is_array = false;
+	    let mut this_size = 0;
+
+	    let wrapped_size = field.get_type().unwrap().get_size();
+	    if wrapped_size != None {
+		this_size = wrapped_size.unwrap();
+		if this_size > 0 {
+		    is_array = true;
+		}
+	    }
 	    newfields.push(CStructField {
 		name: field.get_name().unwrap(),
+		is_array : is_array,
+		size : this_size as u32,
 		ftype: field.get_type().unwrap().get_display_name(),
 	    });
         }
