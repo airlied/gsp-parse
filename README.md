@@ -16,4 +16,4 @@ structs have a name and list of fields.
 
 2) Take a list of type names and generate and output C header from them - these should eventually be versioned.
 
-cargo run --bin generate -- ./535.113.01.json ./examples/nouveau_want_list.txt
+cargo run --bin generate -- ./535.113.01.json ./examples/nouveau_want_list.txt 535.113.01.h
