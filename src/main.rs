@@ -16,34 +16,30 @@ struct CStructField {
     name: String,
 }
 
-#[derive(Serialize, Deserialize)]
-struct CStruct {
-    name: String,
-    fields: Vec<CStructField>,
-}
-
 #[derive(Serialize, Deserialize, Default)]
-enum CDefineType {
+enum CType {
     #[default]
     UNKNOWN,
     VALUE,
     VALUE2,
+    STRUCT,
 }
 
 #[derive(Serialize, Deserialize, Default)]
-struct CDefine {
+struct CTypes {
     name: String,
-    define_type: CDefineType,
+    ctype: CType,
     value: String,
     // for : sepearated values
     value2: String,
+    // for structs
+    fields: Vec<CStructField>,
 }
 
 #[derive(Serialize, Deserialize, Default)]
 struct CJson {
     version: String,
-    defines: Vec<CDefine>,
-    structs: Vec<CStruct>,
+    types: Vec<CTypes>,
 }
 
 fn add_file_to_json(index: &Index, path: &str, inc_path: &String, json_output: &mut CJson) -> std::io::Result<()> {
@@ -66,7 +62,7 @@ fn add_file_to_json(index: &Index, path: &str, inc_path: &String, json_output: &
 //  println!("parsing defines");
     for define_ in defines {
 	let name = define_.get_display_name().unwrap();
-	let mut define_type : CDefineType = CDefineType::UNKNOWN;
+	let mut ctype : CType = CType::UNKNOWN;
 //	println!(" {:?}", name);
 	// filter out the __ ones
 	if name.as_bytes()[0] == '_' as u8 && name.as_bytes()[1] == '_' as u8 {
@@ -84,19 +80,20 @@ fn add_file_to_json(index: &Index, path: &str, inc_path: &String, json_output: &
 	let mut vstring : String = "".to_string();
 	let mut vstring2 : String = "".to_string();
 	if tokens[1].get_spelling() == "(" && tokens[3].get_spelling() == ")" {
-	    define_type = CDefineType::VALUE;
+	    ctype = CType::VALUE;
 	    vstring = tokens[2].get_spelling();
 	} else if tokens[2].get_spelling() == ":" {
-	    define_type = CDefineType::VALUE2;
+	    ctype = CType::VALUE2;
 	    vstring = tokens[1].get_spelling();
 	    vstring2 = tokens[3].get_spelling();
 	}
 
-	json_output.defines.push(CDefine {
+	json_output.types.push(CTypes {
 	    name: name,
-	    define_type: define_type,
+	    ctype: ctype,
 	    value: vstring,
 	    value2: vstring2,
+	    fields: Default::default(),
 	})
     }
 
@@ -112,13 +109,16 @@ fn add_file_to_json(index: &Index, path: &str, inc_path: &String, json_output: &
 
         for field in struct_.get_children() {
 	    newfields.push(CStructField {
-		ftype: field.get_type().unwrap().get_display_name(),
 		name: field.get_name().unwrap(),
+		ftype: field.get_type().unwrap().get_display_name(),
 	    });
         }
-	json_output.structs.push(CStruct {
+	json_output.types.push(CTypes {
 	    name: struct_.get_name().unwrap(),
+	    ctype: CType::STRUCT,
 	    fields: newfields,
+	    value: "".to_string(),
+	    value2: "".to_string(),
 	});
     }
     Ok(())

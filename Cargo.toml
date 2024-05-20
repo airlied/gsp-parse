@@ -5,6 +5,10 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[[bin]]
+name="json"
+path="src/main.rs"
+
 [dependencies]
 walkdir = "2"
 serde = { version = "1", features = ["derive"] }
