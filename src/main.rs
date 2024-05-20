@@ -3,7 +3,7 @@
 extern crate clang;
 
 use clang::*;
-
+use std::env;
 use serde::{Deserialize, Serialize};
 
 use std::fs::File;
@@ -25,8 +25,8 @@ struct CStruct {
 enum CDefineType {
     #[default]
     UNKNOWN,
-    RANGE,
     VALUE,
+    VALUE2,
 }
 
 #[derive(Serialize, Deserialize, Default)]
@@ -34,7 +34,8 @@ struct CDefine {
     name: String,
     define_type: CDefineType,
     value: String,
-    range: [u32; 2],
+    // for : sepearated values
+    value2: String,
 }
 
 #[derive(Serialize, Deserialize, Default)]
@@ -43,7 +44,7 @@ struct CJson {
     structs: Vec<CStruct>,
 }
 
-fn add_file_to_json(index: Index, path: String, json_output: &mut CJson) -> std::io::Result<()> {
+fn add_file_to_json(index: &Index, path: &String, json_output: &mut CJson) -> std::io::Result<()> {
 
     // Parse a source file into a translation unit
     let mut parser = index.parser(path);
@@ -58,6 +59,7 @@ fn add_file_to_json(index: Index, path: String, json_output: &mut CJson) -> std:
         !e.is_function_like_macro()
     }).collect::<Vec<_>>();
 
+//  println!("parsing defines");
     for define_ in defines {
 	let name = define_.get_display_name().unwrap();
 	let mut define_type : CDefineType = CDefineType::UNKNOWN;
@@ -71,29 +73,30 @@ fn add_file_to_json(index: Index, path: String, json_output: &mut CJson) -> std:
 	if tokens.len() != 4 {
 	    continue;
 	}
-	let mut range : u32 = 0;
-	let mut range_end : u32 = 0;
+//	for token in &tokens {
+//	    println!("{:?}", token.get_spelling());
+//	}
+
 	let mut vstring : String = "".to_string();
+	let mut vstring2 : String = "".to_string();
 	if tokens[1].get_spelling() == "(" && tokens[3].get_spelling() == ")" {
 	    define_type = CDefineType::VALUE;
 	    vstring = tokens[2].get_spelling();
 	} else if tokens[2].get_spelling() == ":" {
-	    define_type = CDefineType::RANGE;
-	    range = tokens[1].get_spelling().parse().unwrap();
-	    range_end = tokens[3].get_spelling().parse().unwrap();
+	    define_type = CDefineType::VALUE2;
+	    vstring = tokens[1].get_spelling();
+	    vstring2 = tokens[3].get_spelling();
 	}
-//	for token in tokens {
-//	    println!("{:?}", token.get_spelling());
-//	}
 
 	json_output.defines.push(CDefine {
 	    name: name,
 	    define_type: define_type,
 	    value: vstring,
-	    range: [range, range_end],
+	    value2: vstring2,
 	})
     }
 
+//  println!("parsing structs");
     // Get the structs in this translation unit
     let structs = tu.get_entity().get_children().into_iter().filter(|e| {
         e.get_kind() == EntityKind::StructDecl
@@ -117,6 +120,8 @@ fn add_file_to_json(index: Index, path: String, json_output: &mut CJson) -> std:
     Ok(())
 }
 fn main() -> std::io::Result<()> {
+    let args: Vec<String> = env::args().collect();
+
     // Acquire an instance of `Clang`
     let clang = Clang::new().unwrap();
 
@@ -125,7 +130,10 @@ fn main() -> std::io::Result<()> {
 
     let mut json_output : CJson = Default::default();
 
-    add_file_to_json(index, "examples/ctrl0073dp.h".to_string(), &mut json_output)?;
+    for arg in &args[1..] {
+	println!("parsing {:?}", arg);
+	add_file_to_json(&index, arg, &mut json_output)?;
+    }
 
     let file = File::create("out.json")?;
     let mut writer = BufWriter::new(file);
