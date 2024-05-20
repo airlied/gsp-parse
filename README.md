@@ -1,4 +1,8 @@
 
+This program has two ways to run:
+
+1) Generate the JSON file from the NVIDIA driver:
+
 This can be run by using:
 
 sh src/runit.sh 535.113.01 ~/devel/open-gpu-kernel-modules/src/common/sdk/nvidia/inc/
@@ -10,3 +14,6 @@ VALUE2 is where NVIDIA use STR:STR and seprates that into two pieces which might
 
 structs have a name and list of fields.
 
+2) Take a list of type names and generate and output C header from them - these should eventually be versioned.
+
+cargo run --bin generate -- ./535.113.01.json ./examples/nouveau_want_list.txt
