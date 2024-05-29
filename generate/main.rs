@@ -20,6 +20,7 @@ enum CType {
     VALUE,
     VALUE2,
     STRUCT,
+    TYPEDEF,
 }
 
 #[derive(Serialize, Deserialize, Default, Clone)]
@@ -29,6 +30,7 @@ struct CTypes {
     value: String,
     // for : sepearated values
     value2: String,
+    is_anon_struct: bool,
     // for structs
     fields: Vec<CStructField>,
 }
