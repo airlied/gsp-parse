@@ -25,6 +25,7 @@ enum CType {
     VALUE,
     VALUE2,
     STRUCT,
+    TYPEDEF,
 }
 
 #[derive(Serialize, Deserialize, Default)]
@@ -138,6 +139,23 @@ fn add_file_to_json(index: &Index, path: &str, inc_path: &String, json_output: &
 	    value2: "".to_string(),
 	});
     }
+
+    let typedefs = tu.get_entity().get_children().into_iter().filter(|e| {
+        e.get_kind() == EntityKind::TypedefDecl
+    }).collect::<Vec<_>>();
+
+    // output typedef info to json
+    for typedef in typedefs {
+	json_output.types.push(CTypes {
+	    name: typedef.get_name().unwrap(),
+	    ctype: CType::TYPEDEF,
+	    value: typedef.get_typedef_underlying_type().unwrap().get_display_name(),
+	    value2: "".to_string(),
+	    is_anon_struct: false,
+	    fields: Default::default(),
+	})
+    }
+
     Ok(())
 }
 
