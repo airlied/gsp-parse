@@ -184,6 +184,7 @@ fn main() -> std::io::Result<()> {
 
     json_output.version = args[1].clone();
 
+    let incpath = args[2].clone() + PATHS[0];
     for path in PATHS {
 	let newpath = args[2].clone() + "/" + path;
 	println!("{:?}", newpath);
@@ -194,7 +195,7 @@ fn main() -> std::io::Result<()> {
 	    }
 	    let path = ent.path().to_str().unwrap();
 	    println!("parsing {:?}", path);
-	    add_file_to_json(&index, path, &args[2], &mut json_output)?;
+	    add_file_to_json(&index, path, &incpath, &mut json_output)?;
 	}
     }
 

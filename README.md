@@ -5,7 +5,7 @@ This program has two ways to run:
 
 This can be run by using:
 
-sh src/runit.sh 535.113.01 ~/devel/open-gpu-kernel-modules/src/common/sdk/nvidia/inc/
+sh src/runit.sh 535.113.01 ~/devel/open-gpu-kernel-modules/
 
 This will replace 535.113.01.json which is a complete json representing the headers for the version you have checked out.
 
