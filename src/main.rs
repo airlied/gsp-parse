@@ -34,6 +34,7 @@ struct CTypes {
     value: String,
     // for : sepearated values
     value2: String,
+    is_anon_struct: bool,
     // for structs
     fields: Vec<CStructField>,
 }
@@ -95,6 +96,7 @@ fn add_file_to_json(index: &Index, path: &str, inc_path: &String, json_output: &
 	    ctype: ctype,
 	    value: vstring,
 	    value2: vstring2,
+	    is_anon_struct: false,
 	    fields: Default::default(),
 	})
     }
@@ -131,6 +133,7 @@ fn add_file_to_json(index: &Index, path: &str, inc_path: &String, json_output: &
 	    name: struct_.get_name().unwrap(),
 	    ctype: CType::STRUCT,
 	    fields: newfields,
+	    is_anon_struct: struct_.is_anonymous(),
 	    value: "".to_string(),
 	    value2: "".to_string(),
 	});
