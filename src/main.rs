@@ -166,6 +166,11 @@ fn just_headers(entry: &DirEntry) -> bool {
          .unwrap_or(false)
 }
 
+const PATHS: &'static [&'static str] = &[
+    "src/common/sdk/nvidia/inc",
+    "src/nvidia/arch/nvalloc/common/inc/gsp/"
+];
+
 fn main() -> std::io::Result<()> {
     let args: Vec<String> = env::args().collect();
 
@@ -179,15 +184,18 @@ fn main() -> std::io::Result<()> {
 
     json_output.version = args[1].clone();
 
-    println!("{:?}", args[2]);
-    for entry in WalkDir::new(&args[2]).into_iter() {
-	let ent = entry.unwrap();
-	if !just_headers(&ent) {
-	    continue
+    for path in PATHS {
+	let newpath = args[2].clone() + "/" + path;
+	println!("{:?}", newpath);
+	for entry in WalkDir::new(&newpath).into_iter() {
+	    let ent = entry.unwrap();
+	    if !just_headers(&ent) {
+		continue
+	    }
+	    let path = ent.path().to_str().unwrap();
+	    println!("parsing {:?}", path);
+	    add_file_to_json(&index, path, &args[2], &mut json_output)?;
 	}
-	let path = ent.path().to_str().unwrap();
-	println!("parsing {:?}", path);
-	add_file_to_json(&index, path, &args[2], &mut json_output)?;
     }
 
     let jsonname = args[1].clone() + ".json";
