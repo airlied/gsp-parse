@@ -16,6 +16,8 @@ struct CStructField {
     name: String,
     is_array: bool,
     size: u32,
+    is_aligned: bool,
+    alignment: u32,
 }
 
 #[derive(Serialize, Deserialize, Default)]
@@ -115,7 +117,16 @@ fn add_file_to_json(index: &Index, path: &str, inc_path: &String, json_output: &
         for field in struct_.get_children() {
 	    let mut is_array = false;
 	    let mut this_size = 0;
+	    let mut is_aligned = false;
+	    let mut alignment : usize = 0;
 
+	    if field.has_attributes() {
+		let attr = field.get_child(0).unwrap();
+		if attr.get_kind() == EntityKind::AlignedAttr {
+		    is_aligned = true;
+		    alignment = field.get_type().unwrap().get_alignof().unwrap();
+		}
+	    }
 	    let wrapped_size = field.get_type().unwrap().get_size();
 	    if wrapped_size != None {
 		this_size = wrapped_size.unwrap();
@@ -128,6 +139,8 @@ fn add_file_to_json(index: &Index, path: &str, inc_path: &String, json_output: &
 		is_array : is_array,
 		size : this_size as u32,
 		ftype: field.get_type().unwrap().get_display_name(),
+		is_aligned: is_aligned,
+		alignment: alignment as u32,
 	    });
         }
 	json_output.types.push(CTypes {
