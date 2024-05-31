@@ -94,7 +94,6 @@ fn get_type_size(fld_type: Type) -> usize {
 	let field_elab_type = fld_type.get_elaborated_type().unwrap();
 	if field_elab_type.get_kind() == TypeKind::Typedef {
 	    let field_elab_typedef = field_elab_type.get_declaration().unwrap().get_typedef_underlying_type();
-	    println!("elaborated typedef {:?} {:?} {:?}", field_elab_type, field_elab_typedef, field_elab_typedef.unwrap().get_sizeof().unwrap() * 8);
 	    size = field_elab_typedef.unwrap().get_sizeof().unwrap() * 8;
 
 	}
@@ -109,7 +108,6 @@ fn handle_record(base_offset: usize, newfields: &mut Vec<HWStructField>, record:
 	let this_base_offset = base_offset + fld.get_offset_of_field().unwrap();
 
 	let fld_type = fld.get_type().unwrap();
-	println!("RECFLD {:?} {:?}", fld, fld_type);
 
 	if fld_type.get_kind() == TypeKind::Record {
 	    handle_record(this_base_offset, newfields, fld);
@@ -156,7 +154,6 @@ fn add_file_to_hwjson(index: &Index, path: &str, inc_path: &String, json_output:
     for define_ in defines {
 	let name = define_.get_display_name().unwrap();
 	let mut hwtype : HWDefineType = HWDefineType::UNKNOWN;
-//	println!(" {:?}", name);
 	// filter out the __ ones
 	if name.as_bytes()[0] == '_' as u8 && name.as_bytes()[1] == '_' as u8 {
 	    continue;
@@ -204,7 +201,6 @@ fn add_file_to_hwjson(index: &Index, path: &str, inc_path: &String, json_output:
 	    continue
 	}
 
-	println!("{:?} {:?}", typedef.get_display_name(), under_type);
 	let understruct = elab_type.get_declaration().unwrap().get_canonical_entity();
 
 	let mut newfields : Vec<HWStructField> = Default::default();
