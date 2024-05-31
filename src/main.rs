@@ -114,7 +114,7 @@ fn handle_record(base_offset: usize, newfields: &mut Vec<HWStructField>, record:
 	    continue;
 	}
 
-	let mut size: usize = 0;
+	let size: usize;
 	let mut group_size: usize = 0;
 	let mut valname = "".to_string();
 	if fld_type.get_kind() == TypeKind::ConstantArray {
@@ -183,9 +183,6 @@ fn add_file_to_hwjson(index: &Index, path: &str, inc_path: &String, json_output:
 	})
     }
 
-    let structs = tu.get_entity().get_children().into_iter().filter(|e| {
-        e.get_kind() == EntityKind::StructDecl
-    }).collect::<Vec<_>>();
     let typedefs = tu.get_entity().get_children().into_iter().filter(|e| {
         e.get_kind() == EntityKind::TypedefDecl
     }).collect::<Vec<_>>();
@@ -201,14 +198,11 @@ fn add_file_to_hwjson(index: &Index, path: &str, inc_path: &String, json_output:
 	    continue
 	}
 
-	let understruct = elab_type.get_declaration().unwrap().get_canonical_entity();
-
 	let mut newfields : Vec<HWStructField> = Default::default();
 
 	let base_offset = 0;
 	handle_record(base_offset, &mut newfields, elab_type.get_declaration().unwrap());
 
-	let name = typedef.get_display_name();
 	json_output.structs.push(HWStruct {
 	    name: typedef.get_display_name().unwrap(),
 	    fields: newfields,
