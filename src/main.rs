@@ -105,9 +105,8 @@ fn get_type_size(fld_type: Type) -> usize {
 // used for handling union/struct nesting
 fn handle_record(base_offset: usize, newfields: &mut Vec<HWStructField>, record: Entity) {
     for fld in record.get_type().unwrap().get_fields().unwrap() {
-	let this_base_offset = base_offset + fld.get_offset_of_field().unwrap();
-
 	let fld_type = fld.get_type().unwrap();
+	let this_base_offset = base_offset + fld.get_offset_of_field().unwrap();
 
 	if fld_type.get_kind() == TypeKind::Record {
 	    handle_record(this_base_offset, newfields, fld);
@@ -135,7 +134,7 @@ fn handle_record(base_offset: usize, newfields: &mut Vec<HWStructField>, record:
     }
 }
 
-fn add_file_to_hwjson(index: &Index, path: &str, prefix: &String, json_output: &mut HWJson) -> std::io::Result<()> {
+fn setup_parser<'a>(index: &'a Index, path: &str, prefix: &String) -> std::io::Result<TranslationUnit<'a>> {
     // Parse a source file into a translation unit
     let mut parser = index.parser(path);
 
@@ -157,8 +156,10 @@ fn add_file_to_hwjson(index: &Index, path: &str, prefix: &String, json_output: &
     // turn on detailed preprocessing to get defines
     parser.detailed_preprocessing_record(true);
     parser.arguments(&args);
-    let tu = parser.parse().unwrap();
+    Ok(parser.parse().unwrap())
+}
 
+fn add_file_to_hwjson<'a>(tu: &TranslationUnit<'a>, json_output: &mut HWJson) -> std::io::Result<()> {
     // Get the declearations?
     let defines = tu.get_entity().get_children().into_iter().filter(|e| {
 	e.get_kind() == EntityKind::MacroDefinition &&
@@ -226,19 +227,7 @@ fn add_file_to_hwjson(index: &Index, path: &str, prefix: &String, json_output: &
     Ok(())
 }
 
-fn add_file_to_cjson(index: &Index, path: &str, json_output: &mut CJson) -> std::io::Result<()> {
-    // Parse a source file into a translation unit
-    let mut parser = index.parser(path);
-    // turn on detailed preprocessing to get defines
-    let mut args : Vec<String> = Default::default();
-    for incpath in INCPATHS {
-	args.push("-I".to_string().to_owned() + incpath);
-    }
-    args.push("-include \"nvtypes.h\"".to_string());
-    parser.detailed_preprocessing_record(true);
-    parser.arguments(&args);
-    let tu = parser.parse().unwrap();
-
+fn add_file_to_cjson<'a>(tu: &TranslationUnit<'a>, json_output: &mut CJson) -> std::io::Result<()> {
     // Get the declearations?
     let defines = tu.get_entity().get_children().into_iter().filter(|e| {
 	e.get_kind() == EntityKind::MacroDefinition &&
@@ -438,8 +427,9 @@ fn main() -> std::io::Result<()> {
 	    let path = ent.path().to_str().unwrap();
 	    println!("parsing {:?}", path);
 
-	    add_file_to_cjson(&index, path, &args[2], &mut cjson_output)?;
-	    add_file_to_hwjson(&index, path, &args[2], &mut hwjson_output)?;
+	    let tu = setup_parser(&index, path, &args[2])?;
+	    add_file_to_cjson(&tu, &mut cjson_output)?;
+	    add_file_to_hwjson(&tu, &mut hwjson_output)?;
 	}
     }
 
