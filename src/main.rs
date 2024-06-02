@@ -135,11 +135,26 @@ fn handle_record(base_offset: usize, newfields: &mut Vec<HWStructField>, record:
     }
 }
 
-fn add_file_to_hwjson(index: &Index, path: &str, inc_path: &String, json_output: &mut HWJson) -> std::io::Result<()> {
+fn add_file_to_hwjson(index: &Index, path: &str, prefix: &String, json_output: &mut HWJson) -> std::io::Result<()> {
     // Parse a source file into a translation unit
     let mut parser = index.parser(path);
+
+    let mut args : Vec<String> = Default::default();
+
+    for define in DEFINES {
+	args.push(define.to_string());
+    }
+
+    for incpath in INCPATHS {
+	args.push("-I".to_string() + prefix + incpath);
+    }
+
+    for incfile in INCFILES {
+	args.push("-include".to_string());
+	args.push(incfile.to_string());
+    }
+
     // turn on detailed preprocessing to get defines
-    let args = ["-I".to_string().to_owned() + inc_path, "-include".to_string(), "nvtypes.h".to_string()];
     parser.detailed_preprocessing_record(true);
     parser.arguments(&args);
     let tu = parser.parse().unwrap();
@@ -211,11 +226,15 @@ fn add_file_to_hwjson(index: &Index, path: &str, inc_path: &String, json_output:
     Ok(())
 }
 
-fn add_file_to_cjson(index: &Index, path: &str, inc_path: &String, json_output: &mut CJson) -> std::io::Result<()> {
+fn add_file_to_cjson(index: &Index, path: &str, json_output: &mut CJson) -> std::io::Result<()> {
     // Parse a source file into a translation unit
     let mut parser = index.parser(path);
     // turn on detailed preprocessing to get defines
-    let args = ["-I".to_string().to_owned() + inc_path, "-include \"nvtypes.h\"".to_string()];
+    let mut args : Vec<String> = Default::default();
+    for incpath in INCPATHS {
+	args.push("-I".to_string().to_owned() + incpath);
+    }
+    args.push("-include \"nvtypes.h\"".to_string());
     parser.detailed_preprocessing_record(true);
     parser.arguments(&args);
     let tu = parser.parse().unwrap();
@@ -341,8 +360,55 @@ fn just_headers(entry: &DirEntry) -> bool {
          .unwrap_or(false)
 }
 
+const INCFILES: &'static [&'static str] = &[
+    "stddef.h",
+    "cpuopsys.h",
+    "gpu/mem_mgr/mem_desc.h",
+    "g_rpc-structures.h",
+    "g_rpc-message-header.h",
+    "objrpc.h",
+];
+
+const INCPATHS: &'static [&'static str] = &[
+    "src/common/inc",
+    "src/common/inc/swref/published",
+    "src/common/nvlink/inbound/interface",
+    "src/common/shared/msgq/inc",
+    "src/common/sdk/nvidia/inc",
+    "src/common/shared/msgq/inc/msgq",
+    "src/nvidia/",
+    "src/nvidia/generated/",
+    "src/nvidia/inc/",
+    "src/nvidia/inc/kernel/",
+    "src/nvidia/inc/libraries/",
+    "src/nvidia/interface/",
+    "src/nvidia/kernel/inc",
+    "src/nvidia/arch/nvalloc/common/inc",
+];
+
+const DEFINES: &'static [&'static str] = &[
+    "-DRPC_MESSAGE_GENERIC_UNION",
+    "-DRPC_MESSAGE_STRUCTURES",
+    "-DRPC_STRUCTURES",
+    "-DRPC_GENERIC_UNION",
+    "-DPORT_MODULE_memory=1",
+    "-DPORT_MODULE_cpu=1",
+    "-DPORT_MODULE_core=1",
+    "-DPORT_MODULE_debug=1",
+    "-DPORT_MODULE_util=1",
+    "-DPORT_MODULE_safe=1",
+    "-DNVRM",
+    "-D_LANGUAGE_C",
+    "-D__NO_CTYPE",
+    "-DRS_STANDALONE=0",
+    "-DPORT_IS_CHECKED_BUILD=1",
+    "-DPORT_IS_KERNEL_BUILD=1",
+];
+
 const PATHS: &'static [&'static str] = &[
     "src/common/sdk/nvidia/inc",
+    "src/common/shared/msgq/inc/msgq",
+    "src/nvidia/inc/kernel/gpu/gsp/",
     "src/nvidia/arch/nvalloc/common/inc/gsp/"
 ];
 
@@ -361,7 +427,6 @@ fn main() -> std::io::Result<()> {
     cjson_output.version = args[1].clone();
     hwjson_output.version = args[1].clone();
 
-    let incpath = args[2].clone() + PATHS[0];
     for path in PATHS {
 	let newpath = args[2].clone() + "/" + path;
 	println!("{:?}", newpath);
@@ -373,8 +438,8 @@ fn main() -> std::io::Result<()> {
 	    let path = ent.path().to_str().unwrap();
 	    println!("parsing {:?}", path);
 
-	    add_file_to_cjson(&index, path, &incpath, &mut cjson_output)?;
-	    add_file_to_hwjson(&index, path, &incpath, &mut hwjson_output)?;
+	    add_file_to_cjson(&index, path, &args[2], &mut cjson_output)?;
+	    add_file_to_hwjson(&index, path, &args[2], &mut hwjson_output)?;
 	}
     }
 
