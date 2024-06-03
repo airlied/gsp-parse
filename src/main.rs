@@ -379,6 +379,7 @@ const DEFINES: &'static [&'static str] = &[
     "-DPORT_MODULE_debug=1",
     "-DPORT_MODULE_util=1",
     "-DPORT_MODULE_safe=1",
+    "-DPORT_MODULE_thread=1",
     "-DNVRM",
     "-D_LANGUAGE_C",
     "-D__NO_CTYPE",
