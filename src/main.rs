@@ -30,8 +30,8 @@ struct HWStruct {
 #[derive(Serialize, Deserialize, Default)]
 enum HWDefineType {
     #[default]
-    UNKNOWN,
-    VALUE,
+    Unknown,
+    Value,
 }
 
 #[derive(Serialize, Deserialize, Default)]
@@ -60,10 +60,10 @@ struct CStructField {
 #[derive(Serialize, Deserialize, Default)]
 enum CType {
     #[default]
-    UNKNOWN,
-    VALUE,
-    STRUCT,
-    TYPEDEF,
+    Unknown,
+    Value,
+    Struct,
+    Typedef,
 }
 
 #[derive(Serialize, Deserialize, Default)]
@@ -166,7 +166,7 @@ fn add_file_to_hwjson<'a>(tu: &TranslationUnit<'a>, json_output: &mut HWJson) ->
 
     for define_ in defines {
 	let name = define_.get_display_name().unwrap();
-	let mut hwtype : HWDefineType = HWDefineType::UNKNOWN;
+	let mut hwtype : HWDefineType = HWDefineType::Unknown;
 	// filter out the __ ones
 	if name.as_bytes()[0] == b'_' && name.as_bytes()[1] == b'_' {
 	    continue;
@@ -179,13 +179,13 @@ fn add_file_to_hwjson<'a>(tu: &TranslationUnit<'a>, json_output: &mut HWJson) ->
 
 	let mut vals: Vec<String> = Default::default();
 	if tokens.len() == 2 {
-	    hwtype = HWDefineType::VALUE;
+	    hwtype = HWDefineType::Value;
 	    vals.push(tokens[1].get_spelling());
 	} else if tokens[1].get_spelling() == "(" && tokens[3].get_spelling() == ")" {
-	    hwtype = HWDefineType::VALUE;
+	    hwtype = HWDefineType::Value;
 	    vals.push(tokens[2].get_spelling());
 	} else if tokens[2].get_spelling() == ":" {
-	    hwtype = HWDefineType::VALUE;
+	    hwtype = HWDefineType::Value;
 	    vals.push(tokens[1].get_spelling());
 	    vals.push(tokens[3].get_spelling());
 	}
@@ -205,7 +205,7 @@ fn add_file_to_hwjson<'a>(tu: &TranslationUnit<'a>, json_output: &mut HWJson) ->
 
 	    println!("{:?} {:?}", child.get_display_name(), child.get_enum_constant_value());
 	    json_output.defines.insert(child.get_display_name().unwrap(), HWDefine {
-		hwtype: HWDefineType::VALUE,
+		hwtype: HWDefineType::Value,
 		vals: vec!(child.get_enum_constant_value().unwrap().1.to_string()),
 	    });
 	}
@@ -251,7 +251,7 @@ fn add_file_to_cjson<'a>(tu: &TranslationUnit<'a>, json_output: &mut CJson) -> s
 
     for define_ in defines {
 	let name = define_.get_display_name().unwrap();
-	let mut ctype : CType = CType::UNKNOWN;
+	let mut ctype : CType = CType::Unknown;
 
 	// filter out the __ ones
 	if name.as_bytes()[0] == b'_' && name.as_bytes()[1] == b'_' {
@@ -265,17 +265,17 @@ fn add_file_to_cjson<'a>(tu: &TranslationUnit<'a>, json_output: &mut CJson) -> s
 
 	let mut vals: Vec<String> = Default::default();
 	if tokens[1].get_spelling() == "(" && tokens[3].get_spelling() == ")" {
-	    ctype = CType::VALUE;
+	    ctype = CType::Value;
 	    vals.push(tokens[2].get_spelling());
 	} else if tokens[2].get_spelling() == ":" {
-	    ctype = CType::VALUE;
+	    ctype = CType::Value;
 	    vals.push(tokens[1].get_spelling());
 	    vals.push(tokens[3].get_spelling());
 	}
 
 	json_output.types.insert(name, CTypes {
-	    ctype: ctype,
-	    vals: vals,
+	    ctype,
+	    vals,
 	    is_anon_struct: false,
 	    fields: Default::default(),
 	});
@@ -312,10 +312,10 @@ fn add_file_to_cjson<'a>(tu: &TranslationUnit<'a>, json_output: &mut CJson) -> s
 	    }
 	    newfields.push(CStructField {
 		name: field.get_name().unwrap(),
-		is_array : is_array,
+		is_array,
 		size : this_size as u32,
 		ftype: field.get_type().unwrap().get_display_name(),
-		is_aligned: is_aligned,
+		is_aligned,
 		alignment: alignment as u32,
 	    });
         }
@@ -323,7 +323,7 @@ fn add_file_to_cjson<'a>(tu: &TranslationUnit<'a>, json_output: &mut CJson) -> s
 	json_output.types.insert(
 	    struct_.get_name().unwrap(),
 	    CTypes {
-		ctype: CType::STRUCT,
+		ctype: CType::Struct,
 		fields: newfields,
 		is_anon_struct: struct_.is_anonymous(),
 		vals: vec!("".to_string()),
@@ -340,7 +340,7 @@ fn add_file_to_cjson<'a>(tu: &TranslationUnit<'a>, json_output: &mut CJson) -> s
 	json_output.types.insert(
 	    typedef.get_name().unwrap(),
 	    CTypes {
-		ctype: CType::TYPEDEF,
+		ctype: CType::Typedef,
 		vals: vec!(typedef.get_typedef_underlying_type().unwrap().get_display_name()),
 		is_anon_struct: false,
 		fields: Default::default(),
