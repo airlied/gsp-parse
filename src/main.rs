@@ -168,12 +168,12 @@ fn add_file_to_hwjson<'a>(tu: &TranslationUnit<'a>, json_output: &mut HWJson) ->
 	let name = define_.get_display_name().unwrap();
 	let mut hwtype : HWDefineType = HWDefineType::UNKNOWN;
 	// filter out the __ ones
-	if name.as_bytes()[0] == '_' as u8 && name.as_bytes()[1] == '_' as u8 {
+	if name.as_bytes()[0] == b'_' && name.as_bytes()[1] == b'_' {
 	    continue;
 	}
 	let tokens = define_.get_range().unwrap().tokenize();
 	// All the interesting ones have 4 tokens.
-	if tokens.len() != 4 {
+	if tokens.len() != 2 && tokens.len() != 4 {
 	    continue;
 	}
 
@@ -191,18 +191,33 @@ fn add_file_to_hwjson<'a>(tu: &TranslationUnit<'a>, json_output: &mut HWJson) ->
 	}
 
 	json_output.defines.insert(name, HWDefine {
-	    hwtype : hwtype,
-	    vals: vals
+	    hwtype,
+	    vals,
 	});
     }
 
+    let enums = tu.get_entity().get_children().into_iter().filter(|e| {
+	e.get_kind() == EntityKind::EnumDecl
+    }).collect::<Vec<_>>();
+
+    for tenum in enums {
+	for child in tenum.get_children() {
+
+	    println!("{:?} {:?}", child.get_display_name(), child.get_enum_constant_value());
+	    json_output.defines.insert(child.get_display_name().unwrap(), HWDefine {
+		hwtype: HWDefineType::VALUE,
+		vals: vec!(child.get_enum_constant_value().unwrap().1.to_string()),
+	    });
+	}
+    }
     let typedefs = tu.get_entity().get_children().into_iter().filter(|e| {
         e.get_kind() == EntityKind::TypedefDecl
     }).collect::<Vec<_>>();
 
     for typedef in typedefs {
 	let under_type = typedef.get_typedef_underlying_type().unwrap();
-	if under_type.is_elaborated().unwrap() == false {
+
+	if !under_type.is_elaborated().unwrap() {
 	    continue
 	}
 
@@ -239,7 +254,7 @@ fn add_file_to_cjson<'a>(tu: &TranslationUnit<'a>, json_output: &mut CJson) -> s
 	let mut ctype : CType = CType::UNKNOWN;
 
 	// filter out the __ ones
-	if name.as_bytes()[0] == '_' as u8 && name.as_bytes()[1] == '_' as u8 {
+	if name.as_bytes()[0] == b'_' && name.as_bytes()[1] == b'_' {
 	    continue;
 	}
 	let tokens = define_.get_range().unwrap().tokenize();
@@ -289,7 +304,7 @@ fn add_file_to_cjson<'a>(tu: &TranslationUnit<'a>, json_output: &mut CJson) -> s
 		}
 	    }
 	    let wrapped_size = field.get_type().unwrap().get_size();
-	    if wrapped_size != None {
+	    if wrapped_size.is_some() {
 		this_size = wrapped_size.unwrap();
 		if this_size > 0 {
 		    is_array = true;
@@ -392,7 +407,8 @@ const PATHS: &'static [&'static str] = &[
     "src/common/sdk/nvidia/inc",
     "src/common/shared/msgq/inc/msgq",
     "src/nvidia/inc/kernel/gpu/gsp/",
-    "src/nvidia/arch/nvalloc/common/inc/gsp/"
+    "src/nvidia/arch/nvalloc/common/inc/gsp/",
+    "src/nvidia/kernel/inc/vgpu/",
 ];
 
 fn main() -> std::io::Result<()> {
