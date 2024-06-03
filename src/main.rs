@@ -233,11 +233,10 @@ fn add_file_to_cjson<'a>(tu: &TranslationUnit<'a>, json_output: &mut CJson) -> s
         !e.is_function_like_macro()
     }).collect::<Vec<_>>();
 
-//  println!("parsing defines");
     for define_ in defines {
 	let name = define_.get_display_name().unwrap();
 	let mut ctype : CType = CType::UNKNOWN;
-//	println!(" {:?}", name);
+
 	// filter out the __ ones
 	if name.as_bytes()[0] == '_' as u8 && name.as_bytes()[1] == '_' as u8 {
 	    continue;
@@ -247,9 +246,6 @@ fn add_file_to_cjson<'a>(tu: &TranslationUnit<'a>, json_output: &mut CJson) -> s
 	if tokens.len() != 4 {
 	    continue;
 	}
-//	for token in &tokens {
-//	    println!("{:?}", token.get_spelling());
-//	}
 
 	let mut vstring : String = "".to_string();
 	let mut vstring2 : String = "".to_string();
@@ -271,7 +267,6 @@ fn add_file_to_cjson<'a>(tu: &TranslationUnit<'a>, json_output: &mut CJson) -> s
 	});
     }
 
-//  println!("parsing structs");
     // Get the structs in this translation unit
     let structs = tu.get_entity().get_children().into_iter().filter(|e| {
         e.get_kind() == EntityKind::StructDecl
@@ -419,7 +414,6 @@ fn main() -> std::io::Result<()> {
 
     for path in PATHS {
 	let newpath = args[2].clone() + "/" + path;
-	println!("{:?}", newpath);
 	for entry in WalkDir::new(&newpath).into_iter() {
 	    let ent = entry.unwrap();
 	    if !just_headers(&ent) {
