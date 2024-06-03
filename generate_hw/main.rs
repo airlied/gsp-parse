@@ -10,6 +10,7 @@ const SPECIAL_TYPES:  [&str;8] = ["NvU32", "NvU64", "NvU16", "NvU8", "NvBool", "
 // start/end are in bits
 #[derive(Serialize, Deserialize)]
 struct HWStructField {
+    name: String,
     start: u32,
     size: u32,
     group_len: u32,
@@ -26,15 +27,12 @@ enum HWDefineType {
     #[default]
     UNKNOWN,
     VALUE,
-    VALUE2,
 }
 
 #[derive(Serialize, Deserialize, Default)]
 struct HWDefine {
     hwtype: HWDefineType,
-    val: String,
-    // for : sepearated values
-    val2: String,
+    vals: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize, Default)]
@@ -45,20 +43,32 @@ struct HWJson {
 }
 
 fn generate_define(out_writer: &mut File, verstr: &str, defname: &String, define: &HWDefine) -> std::io::Result<()> {
-    writeln!(out_writer, "#define {}_{} {}", defname, verstr, define.val)
-}
-
-fn generate_define2(out_writer: &mut File, verstr: &str, defname: &String, define: &HWDefine) -> std::io::Result<()> {
-    writeln!(out_writer, "#define {}_{} {}:{}", defname, verstr, define.val, define.val2)
+    if define.vals.len() == 2 {
+	writeln!(out_writer, "#define {}_{} {}:{}", defname, verstr, define.vals[0], define.vals[1])?;
+    } else {
+	writeln!(out_writer, "#define {}_{} {}", defname, verstr, define.vals[0])?;
+    }
+    Ok(())
 }
 
 fn generate_hw_struct(out_writer: &mut File, verstr: &str, strname: &String, hwstruct: &HWStruct) -> std::io::Result<()> {
     writeln!(out_writer, "struct {} {{", strname)?;
 
     for field in &hwstruct.fields {
-	
+	let typestr = match field.size {
+	    64 => "u64",
+	    32 => "u32",
+	    16 => "u16",
+	    8 => "u8",
+	    _ => "u32",
+	};
+	if field.group_len > 0 {
+	    writeln!(out_writer, "    {} {}[{}];", typestr, field.name, field.group_len)?;
+	} else {
+	    writeln!(out_writer, "    {} {};", typestr, field.name)?;
+	}
     }
-    Ok(())
+    writeln!(out_writer, "}};")
 }
 
 fn main() -> std::io::Result<()> {
@@ -91,7 +101,6 @@ fn main() -> std::io::Result<()> {
 	    if *defname == name {
 		match define.hwtype {
 		    HWDefineType::VALUE => generate_define(&mut out_file, &ver_str.as_str(), &defname, define),
-		    HWDefineType::VALUE2 => generate_define2(&mut out_file, &ver_str.as_str(), &defname, define),
 		    HWDefineType::UNKNOWN => todo!(),
 		}?;
 		writeln!(&out_file).unwrap();
@@ -101,7 +110,7 @@ fn main() -> std::io::Result<()> {
 
 	for (strname, structinfo) in &json_input.structs {
 	    if *strname == name {
-
+		generate_hw_struct(&mut out_file, &ver_str.as_str(), &strname, structinfo)?;
 	    }
 	}
     }

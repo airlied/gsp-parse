@@ -31,15 +31,12 @@ enum HWDefineType {
     #[default]
     UNKNOWN,
     VALUE,
-    VALUE2,
 }
 
 #[derive(Serialize, Deserialize, Default)]
 struct HWDefine {
     hwtype: HWDefineType,
-    val: String,
-    // for : sepearated values
-    val2: String,
+    vals: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize, Default)]
@@ -64,7 +61,6 @@ enum CType {
     #[default]
     UNKNOWN,
     VALUE,
-    VALUE2,
     STRUCT,
     TYPEDEF,
 }
@@ -72,9 +68,7 @@ enum CType {
 #[derive(Serialize, Deserialize, Default)]
 struct CTypes {
     ctype: CType,
-    val: String,
-    // for : sepearated values
-    val2: String,
+    vals: Vec<String>,
     is_anon_struct: bool,
     // for structs
     fields: Vec<CStructField>,
@@ -178,21 +172,19 @@ fn add_file_to_hwjson<'a>(tu: &TranslationUnit<'a>, json_output: &mut HWJson) ->
 	    continue;
 	}
 
-	let mut vstring : String = "".to_string();
-	let mut vstring2 : String = "".to_string();
+	let mut vals: Vec<String> = Default::default();
 	if tokens[1].get_spelling() == "(" && tokens[3].get_spelling() == ")" {
 	    hwtype = HWDefineType::VALUE;
-	    vstring = tokens[2].get_spelling();
+	    vals.push(tokens[2].get_spelling());
 	} else if tokens[2].get_spelling() == ":" {
-	    hwtype = HWDefineType::VALUE2;
-	    vstring = tokens[1].get_spelling();
-	    vstring2 = tokens[3].get_spelling();
+	    hwtype = HWDefineType::VALUE;
+	    vals.push(tokens[1].get_spelling());
+	    vals.push(tokens[3].get_spelling());
 	}
 
 	json_output.defines.insert(name, HWDefine {
 	    hwtype : hwtype,
-	    val: vstring,
-	    val2: vstring2,
+	    vals: vals
 	});
     }
 
@@ -247,21 +239,19 @@ fn add_file_to_cjson<'a>(tu: &TranslationUnit<'a>, json_output: &mut CJson) -> s
 	    continue;
 	}
 
-	let mut vstring : String = "".to_string();
-	let mut vstring2 : String = "".to_string();
+	let mut vals: Vec<String> = Default::default();
 	if tokens[1].get_spelling() == "(" && tokens[3].get_spelling() == ")" {
 	    ctype = CType::VALUE;
-	    vstring = tokens[2].get_spelling();
+	    vals.push(tokens[2].get_spelling());
 	} else if tokens[2].get_spelling() == ":" {
-	    ctype = CType::VALUE2;
-	    vstring = tokens[1].get_spelling();
-	    vstring2 = tokens[3].get_spelling();
+	    ctype = CType::VALUE;
+	    vals.push(tokens[1].get_spelling());
+	    vals.push(tokens[3].get_spelling());
 	}
 
 	json_output.types.insert(name, CTypes {
 	    ctype: ctype,
-	    val: vstring,
-	    val2: vstring2,
+	    vals: vals,
 	    is_anon_struct: false,
 	    fields: Default::default(),
 	});
@@ -312,8 +302,7 @@ fn add_file_to_cjson<'a>(tu: &TranslationUnit<'a>, json_output: &mut CJson) -> s
 		ctype: CType::STRUCT,
 		fields: newfields,
 		is_anon_struct: struct_.is_anonymous(),
-		val: "".to_string(),
-		val2: "".to_string(),
+		vals: vec!("".to_string()),
 	    }
 	    );
     }
@@ -328,8 +317,7 @@ fn add_file_to_cjson<'a>(tu: &TranslationUnit<'a>, json_output: &mut CJson) -> s
 	    typedef.get_name().unwrap(),
 	    CTypes {
 		ctype: CType::TYPEDEF,
-		val: typedef.get_typedef_underlying_type().unwrap().get_display_name(),
-		val2: "".to_string(),
+		vals: vec!(typedef.get_typedef_underlying_type().unwrap().get_display_name()),
 		is_anon_struct: false,
 		fields: Default::default(),
 	    });

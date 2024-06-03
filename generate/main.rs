@@ -19,7 +19,6 @@ enum CType {
     #[default]
     UNKNOWN,
     VALUE,
-    VALUE2,
     STRUCT,
     TYPEDEF,
 }
@@ -27,9 +26,7 @@ enum CType {
 #[derive(Serialize, Deserialize, Default, Clone)]
 struct CTypes {
     ctype: CType,
-    val: String,
-    // for : sepearated values
-    val2: String,
+    vals: Vec<String>,
     is_anon_struct: bool,
     // for structs
     fields: Vec<CStructField>,
@@ -42,11 +39,12 @@ struct CJson {
 }
 
 fn generate_define(out_writer: &mut File, verstr: &str, defname: &String, define: &CTypes) -> std::io::Result<()> {
-    writeln!(out_writer, "#define {}_{} {}", defname, verstr, define.val)
-}
-
-fn generate_define2(out_writer: &mut File, verstr: &str, defname: &String, define: &CTypes) -> std::io::Result<()> {
-    writeln!(out_writer, "#define {}_{} {}:{}", defname, verstr, define.val, define.val2)
+    if define.vals.len() == 2 {
+	writeln!(out_writer, "#define {}_{} {}:{}", defname, verstr, define.vals[0], define.vals[1])?;
+    } else {
+	writeln!(out_writer, "#define {}_{} {}", defname, verstr, define.vals[0])?;
+    }
+    Ok(())
 }
 
 fn generate_struct(out_writer: &mut File, verstr: &str, strname: &String, cstruct: &CTypes) -> std::io::Result<()> {
@@ -65,7 +63,7 @@ fn generate_struct(out_writer: &mut File, verstr: &str, strname: &String, cstruc
 }
 
 fn generate_typedef(out_writer: &mut File, verstr: &str, tdname: &String, ctypedef: &CTypes) -> std::io::Result<()> {
-    writeln!(out_writer, "typedef struct {}_{} {}", tdname, verstr, ctypedef.val)?;
+    writeln!(out_writer, "typedef struct {}_{} {}", tdname, verstr, ctypedef.vals[0])?;
     Ok(())
 }
 
@@ -101,7 +99,6 @@ fn main() -> std::io::Result<()> {
 		match c_def_type {
 		    CType::STRUCT => generate_struct(&mut out_file, &ver_str.as_str(), &cname, &ctype),
 		    CType::VALUE => generate_define(&mut out_file, &ver_str.as_str(), &cname, &ctype),
-		    CType::VALUE2 => generate_define2(&mut out_file, &ver_str.as_str(), &cname, &ctype),
 		    CType::TYPEDEF => generate_typedef(&mut out_file, &ver_str.as_str(), &cname, &ctype),
 		    CType::UNKNOWN => todo!(),
 		}?;
