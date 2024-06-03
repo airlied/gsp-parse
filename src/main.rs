@@ -7,6 +7,7 @@ use std::env;
 use serde::{Deserialize, Serialize};
 
 use std::fs::File;
+use std::collections::HashMap;
 use std::io::{BufWriter, Write};
 use walkdir::{DirEntry, WalkDir};
 
@@ -22,7 +23,6 @@ struct HWStructField {
 
 #[derive(Serialize, Deserialize)]
 struct HWStruct {
-    name: String,
     fields: Vec<HWStructField>,
 }
 
@@ -36,18 +36,17 @@ enum HWDefineType {
 
 #[derive(Serialize, Deserialize, Default)]
 struct HWDefine {
-    name: String,
-    hw_def_type: HWDefineType,
-    value: String,
+    hwtype: HWDefineType,
+    val: String,
     // for : sepearated values
-    value2: String,
+    val2: String,
 }
 
 #[derive(Serialize, Deserialize, Default)]
 struct HWJson {
     version: String,
-    defines: Vec<HWDefine>,
-    structs: Vec<HWStruct>,
+    defines: HashMap<String, HWDefine>,
+    structs: HashMap<String, HWStruct>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -72,11 +71,10 @@ enum CType {
 
 #[derive(Serialize, Deserialize, Default)]
 struct CTypes {
-    name: String,
     ctype: CType,
-    value: String,
+    val: String,
     // for : sepearated values
-    value2: String,
+    val2: String,
     is_anon_struct: bool,
     // for structs
     fields: Vec<CStructField>,
@@ -85,7 +83,7 @@ struct CTypes {
 #[derive(Serialize, Deserialize, Default)]
 struct CJson {
     version: String,
-    types: Vec<CTypes>,
+    types: HashMap<String, CTypes>,
 }
 
 fn get_type_size(fld_type: Type) -> usize {
@@ -191,12 +189,11 @@ fn add_file_to_hwjson<'a>(tu: &TranslationUnit<'a>, json_output: &mut HWJson) ->
 	    vstring2 = tokens[3].get_spelling();
 	}
 
-	json_output.defines.push(HWDefine {
-	    name: name,
-	    hw_def_type : hwtype,
-	    value: vstring,
-	    value2: vstring2,
-	})
+	json_output.defines.insert(name, HWDefine {
+	    hwtype : hwtype,
+	    val: vstring,
+	    val2: vstring2,
+	});
     }
 
     let typedefs = tu.get_entity().get_children().into_iter().filter(|e| {
@@ -219,10 +216,11 @@ fn add_file_to_hwjson<'a>(tu: &TranslationUnit<'a>, json_output: &mut HWJson) ->
 	let base_offset = 0;
 	handle_record(base_offset, &mut newfields, elab_type.get_declaration().unwrap());
 
-	json_output.structs.push(HWStruct {
-	    name: typedef.get_display_name().unwrap(),
-	    fields: newfields,
-	})
+	let thisname = typedef.get_display_name().unwrap();
+	json_output.structs.insert(thisname,
+				   HWStruct {
+				       fields: newfields,
+				   });
     }
     Ok(())
 }
@@ -264,14 +262,13 @@ fn add_file_to_cjson<'a>(tu: &TranslationUnit<'a>, json_output: &mut CJson) -> s
 	    vstring2 = tokens[3].get_spelling();
 	}
 
-	json_output.types.push(CTypes {
-	    name: name,
+	json_output.types.insert(name, CTypes {
 	    ctype: ctype,
-	    value: vstring,
-	    value2: vstring2,
+	    val: vstring,
+	    val2: vstring2,
 	    is_anon_struct: false,
 	    fields: Default::default(),
-	})
+	});
     }
 
 //  println!("parsing structs");
@@ -313,14 +310,17 @@ fn add_file_to_cjson<'a>(tu: &TranslationUnit<'a>, json_output: &mut CJson) -> s
 		alignment: alignment as u32,
 	    });
         }
-	json_output.types.push(CTypes {
-	    name: struct_.get_name().unwrap(),
-	    ctype: CType::STRUCT,
-	    fields: newfields,
-	    is_anon_struct: struct_.is_anonymous(),
-	    value: "".to_string(),
-	    value2: "".to_string(),
-	});
+
+	json_output.types.insert(
+	    struct_.get_name().unwrap(),
+	    CTypes {
+		ctype: CType::STRUCT,
+		fields: newfields,
+		is_anon_struct: struct_.is_anonymous(),
+		val: "".to_string(),
+		val2: "".to_string(),
+	    }
+	    );
     }
 
     let typedefs = tu.get_entity().get_children().into_iter().filter(|e| {
@@ -329,14 +329,15 @@ fn add_file_to_cjson<'a>(tu: &TranslationUnit<'a>, json_output: &mut CJson) -> s
 
     // output typedef info to json
     for typedef in typedefs {
-	json_output.types.push(CTypes {
-	    name: typedef.get_name().unwrap(),
-	    ctype: CType::TYPEDEF,
-	    value: typedef.get_typedef_underlying_type().unwrap().get_display_name(),
-	    value2: "".to_string(),
-	    is_anon_struct: false,
-	    fields: Default::default(),
-	})
+	json_output.types.insert(
+	    typedef.get_name().unwrap(),
+	    CTypes {
+		ctype: CType::TYPEDEF,
+		val: typedef.get_typedef_underlying_type().unwrap().get_display_name(),
+		val2: "".to_string(),
+		is_anon_struct: false,
+		fields: Default::default(),
+	    });
     }
 
     Ok(())
