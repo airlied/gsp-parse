@@ -1,9 +1,10 @@
 use std::env;
 use std::fs::File;
+use std::collections::HashMap;
 use std::io::{BufReader, BufRead, Write};
 use serde::{Deserialize, Serialize};
 
-const SPECIAL_TYPES:  [&str;7] = ["NvU32", "NvU64", "NvU16", "NvU8", "NvBool", "char", "NvHandle"];
+const SPECIAL_TYPES:  [&str;8] = ["NvU32", "NvU64", "NvU16", "NvU8", "NvBool", "char", "NvHandle", "int"];
 
 #[derive(Serialize, Deserialize, Clone)]
 struct CStructField {
@@ -25,11 +26,10 @@ enum CType {
 
 #[derive(Serialize, Deserialize, Default, Clone)]
 struct CTypes {
-    name: String,
     ctype: CType,
-    value: String,
+    val: String,
     // for : sepearated values
-    value2: String,
+    val2: String,
     is_anon_struct: bool,
     // for structs
     fields: Vec<CStructField>,
@@ -38,19 +38,19 @@ struct CTypes {
 #[derive(Serialize, Deserialize, Default)]
 struct CJson {
     version: String,
-    types: Vec<CTypes>,
+    types: HashMap<String, CTypes>,
 }
 
-fn generate_define(out_writer: &mut File, verstr: &str, define: &CTypes) -> std::io::Result<()> {
-    writeln!(out_writer, "#define {}_{} {}", define.name, verstr, define.value)
+fn generate_define(out_writer: &mut File, verstr: &str, defname: &String, define: &CTypes) -> std::io::Result<()> {
+    writeln!(out_writer, "#define {}_{} {}", defname, verstr, define.val)
 }
 
-fn generate_define2(out_writer: &mut File, verstr: &str, define: &CTypes) -> std::io::Result<()> {
-    writeln!(out_writer, "#define {}_{} {}:{}", define.name, verstr, define.value, define.value2)
+fn generate_define2(out_writer: &mut File, verstr: &str, defname: &String, define: &CTypes) -> std::io::Result<()> {
+    writeln!(out_writer, "#define {}_{} {}:{}", defname, verstr, define.val, define.val2)
 }
 
-fn generate_struct(out_writer: &mut File, verstr: &str, cstruct: &CTypes) -> std::io::Result<()> {
-    writeln!(out_writer, "typedef struct {}_{} {{", cstruct.name, verstr)?;
+fn generate_struct(out_writer: &mut File, verstr: &str, strname: &String, cstruct: &CTypes) -> std::io::Result<()> {
+    writeln!(out_writer, "typedef struct {}_{} {{", strname, verstr)?;
 
     for field in &cstruct.fields {
 	if field.is_array {
@@ -60,7 +60,12 @@ fn generate_struct(out_writer: &mut File, verstr: &str, cstruct: &CTypes) -> std
 	    writeln!(out_writer, "    {}_{}    {};", field.ftype, verstr, field.name)?;
 	}
     }
-    writeln!(out_writer, "}} {}_{};", cstruct.name, verstr)?;
+    writeln!(out_writer, "}} {}_{};", strname, verstr)?;
+    Ok(())
+}
+
+fn generate_typedef(out_writer: &mut File, verstr: &str, tdname: &String, ctypedef: &CTypes) -> std::io::Result<()> {
+    writeln!(out_writer, "typedef struct {}_{} {}", tdname, verstr, ctypedef.val)?;
     Ok(())
 }
 
@@ -89,14 +94,15 @@ fn main() -> std::io::Result<()> {
     writeln!(out_file)?;
     for sym_name in sym_reader.lines() {
 	let name = sym_name.unwrap();
-	for ctype in &json_input.types {
-	    if ctype.name == name {
+	for (cname, ctype) in &json_input.types {
+	    if *cname == name {
 		let c_def_type = ctype.clone().ctype;
 
 		match c_def_type {
-		    CType::STRUCT => generate_struct(&mut out_file, &ver_str.as_str(), &ctype),
-		    CType::VALUE => generate_define(&mut out_file, &ver_str.as_str(), &ctype),
-		    CType::VALUE2 => generate_define2(&mut out_file, &ver_str.as_str(), &ctype),
+		    CType::STRUCT => generate_struct(&mut out_file, &ver_str.as_str(), &cname, &ctype),
+		    CType::VALUE => generate_define(&mut out_file, &ver_str.as_str(), &cname, &ctype),
+		    CType::VALUE2 => generate_define2(&mut out_file, &ver_str.as_str(), &cname, &ctype),
+		    CType::TYPEDEF => generate_typedef(&mut out_file, &ver_str.as_str(), &cname, &ctype),
 		    CType::UNKNOWN => todo!(),
 		}?;
 		writeln!(&out_file).unwrap();

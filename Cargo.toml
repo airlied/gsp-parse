@@ -10,6 +10,10 @@ name="generate"
 path="generate/main.rs"
 
 [[bin]]
+name="generate_hw"
+path="generate_hw/main.rs"
+
+[[bin]]
 name="json"
 path="src/main.rs"
 
@@ -17,4 +21,4 @@ path="src/main.rs"
 walkdir = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-clang = { git = "https://github.com/airlied/clang-rs/", features = ["clang_3_9"] }
+clang = { git = "https://github.com/airlied/clang-rs/", features = ["clang_9_0"] }
