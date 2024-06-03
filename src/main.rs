@@ -7,7 +7,7 @@ use std::env;
 use serde::{Deserialize, Serialize};
 
 use std::fs::File;
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::io::{BufWriter, Write};
 use walkdir::{DirEntry, WalkDir};
 
@@ -23,6 +23,7 @@ struct HWStructField {
 
 #[derive(Serialize, Deserialize)]
 struct HWStruct {
+    total_size: u32,
     fields: Vec<HWStructField>,
 }
 
@@ -42,8 +43,8 @@ struct HWDefine {
 #[derive(Serialize, Deserialize, Default)]
 struct HWJson {
     version: String,
-    defines: HashMap<String, HWDefine>,
-    structs: HashMap<String, HWStruct>,
+    defines: BTreeMap<String, HWDefine>,
+    structs: BTreeMap<String, HWStruct>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -77,7 +78,7 @@ struct CTypes {
 #[derive(Serialize, Deserialize, Default)]
 struct CJson {
     version: String,
-    types: HashMap<String, CTypes>,
+    types: BTreeMap<String, CTypes>,
 }
 
 fn get_type_size(fld_type: Type) -> usize {
@@ -95,13 +96,14 @@ fn get_type_size(fld_type: Type) -> usize {
 
 // recursive function that handles records inside records.
 // used for handling union/struct nesting
-fn handle_record(base_offset: usize, newfields: &mut Vec<HWStructField>, record: Entity) {
+fn handle_record(base_offset: usize, newfields: &mut Vec<HWStructField>, record: Entity) -> usize {
+    let mut end_offset = base_offset;
     for fld in record.get_type().unwrap().get_fields().unwrap() {
 	let fld_type = fld.get_type().unwrap();
 	let this_base_offset = base_offset + fld.get_offset_of_field().unwrap();
 
 	if fld_type.get_kind() == TypeKind::Record {
-	    handle_record(this_base_offset, newfields, fld);
+	    end_offset = handle_record(this_base_offset, newfields, fld);
 	    continue;
 	}
 
@@ -116,6 +118,8 @@ fn handle_record(base_offset: usize, newfields: &mut Vec<HWStructField>, record:
 	    size = get_type_size(fld_type);
 	}
 
+	end_offset = this_base_offset + size;
+
 	newfields.push(HWStructField {
 	    name: fld.get_display_name().unwrap(),
 	    val_type: valname,
@@ -124,6 +128,7 @@ fn handle_record(base_offset: usize, newfields: &mut Vec<HWStructField>, record:
 	    group_len: group_size as u32,
 	})
     }
+    end_offset
 }
 
 fn setup_parser<'a>(index: &'a Index, path: &str, prefix: &String) -> std::io::Result<TranslationUnit<'a>> {
@@ -173,7 +178,10 @@ fn add_file_to_hwjson<'a>(tu: &TranslationUnit<'a>, json_output: &mut HWJson) ->
 	}
 
 	let mut vals: Vec<String> = Default::default();
-	if tokens[1].get_spelling() == "(" && tokens[3].get_spelling() == ")" {
+	if tokens.len() == 2 {
+	    hwtype = HWDefineType::VALUE;
+	    vals.push(tokens[1].get_spelling());
+	} else if tokens[1].get_spelling() == "(" && tokens[3].get_spelling() == ")" {
 	    hwtype = HWDefineType::VALUE;
 	    vals.push(tokens[2].get_spelling());
 	} else if tokens[2].get_spelling() == ":" {
@@ -206,11 +214,12 @@ fn add_file_to_hwjson<'a>(tu: &TranslationUnit<'a>, json_output: &mut HWJson) ->
 	let mut newfields : Vec<HWStructField> = Default::default();
 
 	let base_offset = 0;
-	handle_record(base_offset, &mut newfields, elab_type.get_declaration().unwrap());
+	let total_size = handle_record(base_offset, &mut newfields, elab_type.get_declaration().unwrap());
 
 	let thisname = typedef.get_display_name().unwrap();
 	json_output.structs.insert(thisname,
 				   HWStruct {
+				       total_size: total_size as u32,
 				       fields: newfields,
 				   });
     }
