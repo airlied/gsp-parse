@@ -91,7 +91,7 @@ fn main() -> std::io::Result<()> {
     writeln!(out_file)?;
 
     for base_type in SPECIAL_TYPES {
-	writeln!(out_file, "#define {}_{} {}", base_type, ver_str, base_type)?;
+//	writeln!(out_file, "#define {}_{} {}", base_type, ver_str, base_type)?;
     }
     writeln!(out_file)?;
     for sym_name in sym_reader.lines() {

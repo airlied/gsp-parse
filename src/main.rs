@@ -18,6 +18,7 @@ struct HWStructField {
     start: u32,
     size: u32,
     group_len: u32,
+    isint: u32,
     val_type: String,
 }
 
@@ -96,36 +97,76 @@ fn get_type_size(fld_type: Type) -> usize {
 
 // recursive function that handles records inside records.
 // used for handling union/struct nesting
-fn handle_record(base_offset: usize, newfields: &mut Vec<HWStructField>, record: Entity) -> usize {
+fn handle_record(base_offset: usize,
+		 newfields: &mut Vec<HWStructField>,
+		 record_fields: Vec<Entity>,
+		 name_prefix: &str) -> usize {
     let mut end_offset = base_offset;
-    for fld in record.get_type().unwrap().get_fields().unwrap() {
+    for fld in record_fields {
 	let fld_type = fld.get_type().unwrap();
 	let this_base_offset = base_offset + fld.get_offset_of_field().unwrap();
 
+	if fld_type.is_elaborated().unwrap() {
+	    if fld_type.get_elaborated_type().unwrap().get_kind() == TypeKind::Record {
+		handle_record(this_base_offset, newfields,
+			      fld_type.get_elaborated_type().unwrap().get_fields().unwrap(), &(fld.get_display_name().unwrap() + "_"));
+		end_offset += fld_type.get_elaborated_type().unwrap().get_sizeof().unwrap();
+		continue;
+	    }
+	}
 	if fld_type.get_kind() == TypeKind::Record {
-	    end_offset = handle_record(this_base_offset, newfields, fld);
+	    handle_record(this_base_offset, newfields, fld.get_type().unwrap().get_fields().unwrap(), "");//fld_type.get_display_name());
+	    end_offset += fld.get_type().unwrap().get_sizeof().unwrap();
 	    continue;
 	}
 
 	let size: usize;
 	let mut group_size: usize = 0;
 	let mut valname = "".to_string();
+	let mut isint = 1;
 	if fld_type.get_kind() == TypeKind::ConstantArray {
+	    let elem_type = fld_type.get_element_type().unwrap();
 	    group_size = fld_type.get_size().unwrap();
-	    size = get_type_size(fld_type.get_element_type().unwrap());
-	    valname = fld_type.get_element_type().unwrap().get_display_name();
+	    size = get_type_size(elem_type);
+	    valname = elem_type.get_display_name();
+	    if elem_type.is_integer() == false {
+		isint = 0;
+	    }
 	} else {
 	    size = get_type_size(fld_type);
+	    if fld_type.is_integer() == false {
+		if fld_type.is_elaborated().unwrap() {
+		    let elab_type = fld_type.get_elaborated_type().unwrap();
+
+		    if elab_type.get_kind() == TypeKind::Typedef {
+			if elab_type.get_canonical_type().get_kind() == TypeKind::Record {
+			    let canon_type = elab_type.get_canonical_type().get_declaration().unwrap();
+
+			    if elab_type.is_integer() == false {
+				isint = 0;
+			    }
+			    valname = canon_type.get_display_name().unwrap();
+			} else {
+			    valname = fld_type.get_display_name();
+			}
+		    } else {
+			valname = fld_type.get_display_name();
+		    }
+		} else {
+		    valname = fld_type.get_display_name();
+		}
+	    }
 	}
 
 	end_offset = this_base_offset + size;
 
 	newfields.push(HWStructField {
-	    name: fld.get_display_name().unwrap(),
+	    name: name_prefix.to_owned() + &fld.get_display_name().unwrap(),
 	    val_type: valname,
 	    start: this_base_offset as u32,
 	    size: size as u32,
 	    group_len: group_size as u32,
+	    isint,
 	})
     }
     end_offset
@@ -203,7 +244,10 @@ fn add_file_to_hwjson<'a>(tu: &TranslationUnit<'a>, json_output: &mut HWJson) ->
     for tenum in enums {
 	for child in tenum.get_children() {
 
-	    println!("{:?} {:?}", child.get_display_name(), child.get_enum_constant_value());
+	    //	    println!("{:?} {:?}", child.get_display_name(), child.get_enum_constant_value());
+	    if child.get_display_name().unwrap() == "packed" {
+		continue;
+	    }
 	    json_output.defines.insert(child.get_display_name().unwrap(), HWDefine {
 		hwtype: HWDefineType::Value,
 		vals: vec!(child.get_enum_constant_value().unwrap().1.to_string()),
@@ -229,7 +273,12 @@ fn add_file_to_hwjson<'a>(tu: &TranslationUnit<'a>, json_output: &mut HWJson) ->
 	let mut newfields : Vec<HWStructField> = Default::default();
 
 	let base_offset = 0;
-	let total_size = handle_record(base_offset, &mut newfields, elab_type.get_declaration().unwrap());
+	let decl = elab_type.get_declaration().unwrap();
+	handle_record(base_offset, &mut newfields, decl.get_type().unwrap().get_fields().unwrap(), "");
+	let total_size = match decl.get_type().unwrap().get_sizeof() {
+	    Ok(x) => { x * 8 }
+	    Err(_) => { 0 }
+	};
 
 	let thisname = typedef.get_display_name().unwrap();
 	json_output.structs.insert(thisname,
@@ -408,7 +457,10 @@ const PATHS: &'static [&'static str] = &[
     "src/common/shared/msgq/inc/msgq",
     "src/nvidia/inc/kernel/gpu/gsp/",
     "src/nvidia/arch/nvalloc/common/inc/gsp/",
+    "src/nvidia/arch/nvalloc/common/inc/",
     "src/nvidia/kernel/inc/vgpu/",
+    "src/common/uproc/os/common/include/",
+    "src/nvidia/generated/",
 ];
 
 fn main() -> std::io::Result<()> {

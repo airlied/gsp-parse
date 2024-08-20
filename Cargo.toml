@@ -14,6 +14,10 @@ name="generate_hw"
 path="generate_hw/main.rs"
 
 [[bin]]
+name="generate_rust"
+path="generate_rust/main.rs"
+
+[[bin]]
 name="json"
 path="src/main.rs"
 
