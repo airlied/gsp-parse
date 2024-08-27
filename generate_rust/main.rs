@@ -61,7 +61,7 @@ fn get_val_info(val: String) -> (u32, String) {
 	newstr += "_u64";
 	return (64, newstr);
     }
-    if val.ends_with("U") {
+    if val.ends_with("U") || val.ends_with("u") {
 	let mut newstr = val.clone();
 	newstr.pop();
 	return (32, newstr);
@@ -120,6 +120,9 @@ fn main() -> std::io::Result<()> {
     let ver_str = "nvfw_".to_owned() + &json_input.version.replace('.', "_");
 
     writeln!(out_file, "// AUTO GENERATED")?;
+    writeln!(out_file, "#![allow(non_snake_case)]")?;
+    writeln!(out_file, "#![allow(dead_code)]")?;
+    writeln!(out_file, "#![allow(non_camel_case_types)]")?;
     writeln!(out_file)?;
 
     for sym_define in sym_json.defines {
@@ -168,9 +171,15 @@ fn main() -> std::io::Result<()> {
 		    }
 
 		    if fld_is_struct {
-			writeln!(&mut out_file, "");			
-			writeln!(&mut out_file, "    pub fn new_S_{}(ptr: *mut u8) -> s_{}<'s> {{", fld.name, fld.val_type);
-			writeln!(&mut out_file, "        s_{}::new(unsafe {{ ptr.byte_offset({}) }})", fld.val_type, fld.start / 8);
+			writeln!(&mut out_file, "");
+
+			if fld.group_len != 0xffffffff {
+			    writeln!(&mut out_file, "    pub fn new_S_{}(&mut self, idx: isize) -> s_{}<'s> {{", fld.name, fld.val_type);
+			    writeln!(&mut out_file, "        s_{}::new(unsafe {{ self.ptr.byte_offset(idx * {} + {}) }})", fld.val_type, fld.size / 8, fld.start / 8);
+			} else {
+			    writeln!(&mut out_file, "    pub fn new_S_{}(&mut self) -> s_{}<'s> {{", fld.name, fld.val_type);
+			    writeln!(&mut out_file, "        s_{}::new(unsafe {{ self.ptr.byte_offset({}) }})", fld.val_type, fld.start / 8);
+			}
 			writeln!(&mut out_file, "    }}");
 			writeln!(&mut out_file, "");
 			continue;
@@ -180,7 +189,7 @@ fn main() -> std::io::Result<()> {
 		    if fld.name == "type" {
 			fld_name = ("r".to_string() + &fld.name);
 		    }
-		    if fld.group_len > 0 {
+		    if fld.group_len != 0xffffffff {
 			writeln!(&mut out_file, "    pub fn {}(self, fld: [{}; {}]) -> Self {{", fld_name, fld_type_name, fld.group_len);
 
 			writeln!(&mut out_file, "        let byte_data: Vec<u8> = fld.iter().flat_map(|&x| x.to_le_bytes()).collect();");
@@ -193,6 +202,13 @@ fn main() -> std::io::Result<()> {
 			writeln!(&mut out_file, "        self.store[{}..{}].copy_from_slice(&byte_data);", fld.start / 8, (fld.start + (fld.size * fld.group_len)) / 8);
 			writeln!(&mut out_file, "    }}");
 
+			writeln!(&mut out_file, "    pub fn get_{}(&mut self) -> [{}; {}] {{", fld_name, fld_type_name, fld.group_len);
+			writeln!(&mut out_file, "        let mut array = [0{}; {}];", fld_type_name, fld.group_len);
+			writeln!(&mut out_file, "        for (i, chunk) in self.store[{}..{}].chunks_exact({}).enumerate() {{", fld.start / 8, (fld.start + (fld.size * fld.group_len)) / 8, fld.size / 8);
+			writeln!(&mut out_file, "            array[i] = {}::from_le_bytes(chunk.try_into().unwrap());", fld_type_name);
+			writeln!(&mut out_file, "        }}");
+			writeln!(&mut out_file, "        array");			
+			writeln!(&mut out_file, "    }}");
 
 		    } else {
 			writeln!(&mut out_file, "    pub fn {}(self, fld: {}) -> Self {{", fld_name, fld_type_name);

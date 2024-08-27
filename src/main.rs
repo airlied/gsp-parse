@@ -91,6 +91,8 @@ fn get_type_size(fld_type: Type) -> usize {
 	    size = field_elab_typedef.unwrap().get_sizeof().unwrap() * 8;
 
 	}
+    } else if fld_type.is_integer() {
+	size = fld_type.get_sizeof().unwrap() * 8;
     }
     size
 }
@@ -120,8 +122,8 @@ fn handle_record(base_offset: usize,
 	    continue;
 	}
 
-	let size: usize;
-	let mut group_size: usize = 0;
+	let mut size: usize;
+	let mut group_size: usize = 0xffffffff;
 	let mut valname = "".to_string();
 	let mut isint = 1;
 	if fld_type.get_kind() == TypeKind::ConstantArray {
@@ -130,7 +132,25 @@ fn handle_record(base_offset: usize,
 	    size = get_type_size(elem_type);
 	    valname = elem_type.get_display_name();
 	    if elem_type.is_integer() == false {
-		isint = 0;
+		if elem_type.is_elaborated().unwrap() {
+		    let elab_type = elem_type.get_elaborated_type().unwrap();
+		    if elab_type.get_kind() == TypeKind::Typedef {
+			if elab_type.get_canonical_type().get_kind() == TypeKind::Record {
+			    let canon_type = elab_type.get_canonical_type().get_declaration().unwrap();
+
+			    if elab_type.is_integer() == false {
+				isint = 0;
+			    }
+			    valname = canon_type.get_display_name().unwrap();
+			} else {
+			    valname = elem_type.get_display_name();
+			}
+		    } else {
+			valname = elem_type.get_display_name();
+		    }
+		} else {
+		    valname = elem_type.get_display_name();
+		}
 	    }
 	} else {
 	    size = get_type_size(fld_type);
@@ -139,7 +159,13 @@ fn handle_record(base_offset: usize,
 		    let elab_type = fld_type.get_elaborated_type().unwrap();
 
 		    if elab_type.get_kind() == TypeKind::Typedef {
-			if elab_type.get_canonical_type().get_kind() == TypeKind::Record {
+			if elab_type.get_canonical_type().get_kind() == TypeKind::ConstantArray {
+			    let canon_type = elab_type.get_canonical_type();
+			    let elem_type = canon_type.get_element_type().unwrap().get_canonical_type();
+			    group_size = canon_type.get_size().unwrap();
+			    size = get_type_size(elem_type);
+			    valname = elem_type.get_display_name();
+			} else if elab_type.get_canonical_type().get_kind() == TypeKind::Record {
 			    let canon_type = elab_type.get_canonical_type().get_declaration().unwrap();
 
 			    if elab_type.is_integer() == false {
@@ -213,12 +239,25 @@ fn add_file_to_hwjson<'a>(tu: &TranslationUnit<'a>, json_output: &mut HWJson) ->
 	    continue;
 	}
 	let tokens = define_.get_range().unwrap().tokenize();
+
 	// All the interesting ones have 4 tokens.
-	if tokens.len() != 2 && tokens.len() != 4 {
+	if tokens.len() != 2 && tokens.len() != 4 && tokens.len() != 6 && tokens.len() != 10 {
 	    continue;
 	}
 
 	let mut vals: Vec<String> = Default::default();
+	if tokens.len() == 10 &&
+	    tokens[1].get_spelling() == "(" && tokens[9].get_spelling() == ")" &&
+	    tokens[4].get_spelling() == "<<" && tokens[7].get_spelling() == "*" {
+		hwtype = HWDefineType::Value;
+		vals.push("(".to_owned() + &tokens[3].get_spelling() + "<<" + &tokens[5].get_spelling() + ") * " + &tokens[8].get_spelling());
+	    }
+	else if tokens.len() == 6 &&
+	    tokens[1].get_spelling() == "(" && tokens[5].get_spelling() == ")" &&
+	    tokens[3].get_spelling() == "<<" {
+		hwtype = HWDefineType::Value;
+		vals.push(tokens[2].get_spelling() + "<<" + &tokens[4].get_spelling());
+	    }
 	if tokens.len() == 2 {
 	    hwtype = HWDefineType::Value;
 	    vals.push(tokens[1].get_spelling());
@@ -280,6 +319,9 @@ fn add_file_to_hwjson<'a>(tu: &TranslationUnit<'a>, json_output: &mut HWJson) ->
 	    Err(_) => { 0 }
 	};
 
+	if total_size == 0 {
+	    continue;
+	}
 	let thisname = typedef.get_display_name().unwrap();
 	json_output.structs.insert(thisname,
 				   HWStruct {
@@ -456,7 +498,6 @@ const PATHS: &'static [&'static str] = &[
     "src/common/sdk/nvidia/inc",
     "src/common/shared/msgq/inc/msgq",
     "src/nvidia/inc/kernel/gpu/gsp/",
-    "src/nvidia/arch/nvalloc/common/inc/gsp/",
     "src/nvidia/arch/nvalloc/common/inc/",
     "src/nvidia/kernel/inc/vgpu/",
     "src/common/uproc/os/common/include/",
@@ -481,7 +522,12 @@ fn main() -> std::io::Result<()> {
     for path in PATHS {
 	let newpath = args[2].clone() + "/" + path;
 	for entry in WalkDir::new(&newpath).into_iter() {
-	    let ent = entry.unwrap();
+
+	    let ent = match entry {
+		Err(_) => { continue; }
+		Ok(x) => { x }
+	    };
+
 	    if !just_headers(&ent) {
 		continue
 	    }
