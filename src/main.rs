@@ -496,6 +496,7 @@ const DEFINES: &'static [&'static str] = &[
 
 const PATHS: &'static [&'static str] = &[
     "src/common/sdk/nvidia/inc",
+    "src/common/inc/swref/published/",
     "src/common/shared/msgq/inc/msgq",
     "src/nvidia/inc/kernel/gpu/gsp/",
     "src/nvidia/arch/nvalloc/common/inc/",
