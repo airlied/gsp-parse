@@ -16,6 +16,6 @@ do
 	cd gitrepo/open-gpu-kernel-modules
 	git checkout -f $i
 	cd ../..
-	cargo run --bin json -- $i gitrepo/open-gpu-kernel-modules jsondb
+	cargo run --bin json -- $i $PWD/gitrepo/open-gpu-kernel-modules/ jsondb
 	cd -
 done
