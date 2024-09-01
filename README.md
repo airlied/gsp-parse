@@ -1,19 +1,16 @@
 
-This program has two ways to run:
+This is a set of software to parse and generate things from the NVIDIA open gpu header files, particularly to implement interfaces to the GSP processor firmware, which has an unstable ABI.
 
-1) Generate the JSON file from the NVIDIA driver:
+This has two stages of software:
 
-This can be run by using:
+1. JSON generator. This parses the NVIDIA includes and generates a set of json files with the information needed for all structs/defines/etc.
 
-sh src/runit.sh 535.113.01 ~/devel/open-gpu-kernel-modules/
+2. rust module generator. This parses the json databases with a list of needed symbols and generates a set of module for use in the nova GPU driver. This might be adapted to nouveau.
 
-This will replace 535.113.01.json which is a complete json representing the headers for the version you have checked out.
 
-defines have a name, one of two types, VALUE is just a single value define,
-VALUE2 is where NVIDIA use STR:STR and seprates that into two pieces which might make it easier to use
+The list of fw versions we care about is stored in fw_list.
+The recreate_hw_json.sh will checkout the NVIDIA repo and run the parser over all of it to pull out the json files and put them in jsondb/
 
-structs have a name and list of fields.
+The recreate_rust.sh will generate a set of files in _out for use in nova eventually.
 
-2) Take a list of type names and generate and output C header from them - these should eventually be versioned.
-
-cargo run --bin generate -- ./535.113.01.json ./examples/nouveau_want_list.txt 535.113.01.h
+examples/nouveau_want_list.json is the lists of symbols needed to be generated.

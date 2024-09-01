@@ -534,19 +534,28 @@ fn main() -> std::io::Result<()> {
 	    let path = ent.path().to_str().unwrap();
 	    println!("parsing {:?}", path);
 
+	    if path != "/home/airlied/devel/open-gpu-kernel-modules//src/nvidia/inc/kernel/gpu/gsp/message_queue_priv.h" && path != "/home/airlied/devel/open-gpu-kernel-modules//src/nvidia/arch/nvalloc/common/inc/gsp/gsp_fw_wpr_meta.h" {
+//		continue
+	    }
+
+	    if path != "/home/airlied/devel/open-gpu-kernel-modules//src/nvidia/inc/kernel/gpu/gsp/gsp_fw_heap.h" {
+//		continue
+	    }
+
+
 	    let tu = setup_parser(&index, path, &args[2])?;
 	    add_file_to_cjson(&tu, &mut cjson_output)?;
 	    add_file_to_hwjson(&tu, &mut hwjson_output)?;
 	}
     }
 
-    let cjsonname = args[1].clone() + ".json";
+    let cjsonname = args[3].clone() + "/" + &args[1].clone() + ".json";
     let file = File::create(cjsonname)?;
     let mut writer = BufWriter::new(file);
     serde_json::to_writer_pretty(&mut writer, &cjson_output)?;
     writer.flush()?;
 
-    let hwjsonname = args[1].clone() + ".hw.json";
+    let hwjsonname = args[3].clone() + "/" + &args[1].clone() + ".hw.json";
     let file = File::create(hwjsonname)?;
     let mut writer = BufWriter::new(file);
     serde_json::to_writer_pretty(&mut writer, &hwjson_output)?;
