@@ -14,11 +14,13 @@ struct HWStructField {
     start: u32,
     size: u32,
     group_len: u32,
+    isint: u32,    
     val_type: String,
 }
 
 #[derive(Serialize, Deserialize)]
 struct HWStruct {
+    total_size: u32,    
     fields: Vec<HWStructField>,
 }
 
@@ -38,15 +40,23 @@ struct HWDefine {
 #[derive(Serialize, Deserialize, Default)]
 struct HWJson {
     version: String,
-    defines: HashMap<String, HWDefine>,
-    structs: HashMap<String, HWStruct>,
+    defines: BTreeMap<String, HWDefine>,
+    structs: BTreeMap<String, HWStruct>,
+}
+
+
+#[derive(Serialize, Deserialize, Default)]
+struct WantedJson {
+    structs: Vec<String>,
+    cmds: BTreeMap<String, Vec<String>>,
+    defines: Vec<String>,
 }
 
 fn generate_define(out_writer: &mut File, verstr: &str, defname: &String, define: &HWDefine) -> std::io::Result<()> {
     if define.vals.len() == 2 {
-	writeln!(out_writer, "#define {}_{} {}:{}", defname, verstr, define.vals[0], define.vals[1])?;
+	writeln!(out_writer, "#define {} {}:{}", defname, define.vals[0], define.vals[1])?;
     } else {
-	writeln!(out_writer, "#define {}_{} {}", defname, verstr, define.vals[0])?;
+	writeln!(out_writer, "#define {} {}", defname, define.vals[0])?;
     }
     Ok(())
 }
@@ -62,7 +72,7 @@ fn generate_hw_struct(out_writer: &mut File, verstr: &str, strname: &String, hws
 	    8 => "u8",
 	    _ => "u32",
 	};
-	if field.group_len > 0 {
+	if field.group_len != 0xffffffff && field.group_len > 0 {
 	    writeln!(out_writer, "    {} {}[{}];", typestr, field.name, field.group_len)?;
 	} else {
 	    writeln!(out_writer, "    {} {};", typestr, field.name)?;

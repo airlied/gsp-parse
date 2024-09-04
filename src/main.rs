@@ -49,7 +49,17 @@ struct HWJson {
 }
 
 #[derive(Serialize, Deserialize)]
+enum FieldType {
+    Member,
+    UnionStart,
+    UnionEnd,
+    StructStart,
+    StructEnd,
+}
+
+#[derive(Serialize, Deserialize)]
 struct CStructField {
+    fldtype: FieldType,
     ftype: String,
     name: String,
     is_array: bool,
@@ -196,6 +206,148 @@ fn handle_record(base_offset: usize,
 	})
     }
     end_offset
+}
+
+// recursive function that handles records inside records.
+// used for handling union/struct nesting
+fn handle_c_parser_record(newfields: &mut Vec<CStructField>,
+			  record_fields: Vec<Entity>,
+			  name_prefix: &str) -> usize {
+//    println!("{:?}", record_fields);
+    for fld in record_fields {
+	let fld_type = fld.get_type().unwrap();
+
+//	println!("{:?} {:?}", fld_type, fld_type.get_declaration());
+	if fld_type.is_elaborated().unwrap() {
+	    if fld_type.get_elaborated_type().unwrap().get_kind() == TypeKind::Record {
+		
+		handle_c_parser_record(newfields,
+			      fld_type.get_elaborated_type().unwrap().get_fields().unwrap(), &(fld.get_display_name().unwrap() + "_"));
+		continue;
+	    }
+	}
+	if fld_type.get_kind() == TypeKind::Record {
+	    if fld_type.get_declaration().unwrap().get_kind() == EntityKind::UnionDecl {
+		newfields.push(CStructField {
+		    fldtype: FieldType::UnionStart,
+		    ftype: "".to_string(),
+		    name: "".to_string(),
+		    is_array: false,
+		    size: 0,
+		    is_aligned: false,
+		    alignment: 0
+		});
+	    }
+	    if fld_type.get_declaration().unwrap().get_kind() == EntityKind::StructDecl {
+		newfields.push(CStructField {
+		    fldtype: FieldType::StructStart,
+		    ftype: "".to_string(),
+		    name: "".to_string(),
+		    is_array: false,
+		    size: 0,
+		    is_aligned: false,
+		    alignment: 0
+		});
+	    }	    
+	    handle_c_parser_record(newfields, fld.get_type().unwrap().get_fields().unwrap(), "");//fld_type.get_display_name());
+	    if fld_type.get_declaration().unwrap().get_kind() == EntityKind::StructDecl {
+		newfields.push(CStructField {
+		    fldtype: FieldType::StructEnd,
+		    ftype: "".to_string(),
+		    name: "".to_string(),
+		    is_array: false,
+		    size: 0,
+		    is_aligned: false,
+		    alignment: 0
+		});
+	    }	    	    
+	    if fld_type.get_declaration().unwrap().get_kind() == EntityKind::UnionDecl {
+		newfields.push(CStructField {
+		    fldtype: FieldType::UnionEnd,
+		    ftype: "".to_string(),
+		    name: "".to_string(),
+		    is_array: false,
+		    size: 0,
+		    is_aligned: false,
+		    alignment: 0
+		});
+	    }	    
+	    continue;
+	}
+
+	let mut size: usize;
+	let mut group_size: usize = 0xffffffff;
+	let mut valname = "".to_string();
+	let mut isint = 1;
+	if fld_type.get_kind() == TypeKind::ConstantArray {
+	    let elem_type = fld_type.get_element_type().unwrap();
+	    group_size = fld_type.get_size().unwrap();
+	    size = get_type_size(elem_type);
+	    valname = elem_type.get_display_name();
+	    if elem_type.is_integer() == false {
+		if elem_type.is_elaborated().unwrap() {
+		    let elab_type = elem_type.get_elaborated_type().unwrap();
+		    if elab_type.get_kind() == TypeKind::Typedef {
+			if elab_type.get_canonical_type().get_kind() == TypeKind::Record {
+			    let canon_type = elab_type.get_canonical_type().get_declaration().unwrap();
+
+			    if elab_type.is_integer() == false {
+				isint = 0;
+			    }
+			    valname = canon_type.get_display_name().unwrap();
+			} else {
+			    valname = elem_type.get_display_name();
+			}
+		    } else {
+			valname = elem_type.get_display_name();
+		    }
+		} else {
+		    valname = elem_type.get_display_name();
+		}
+	    }
+	} else {
+	    size = get_type_size(fld_type);
+	    if fld_type.is_integer() == false {
+		if fld_type.is_elaborated().unwrap() {
+		    let elab_type = fld_type.get_elaborated_type().unwrap();
+
+		    if elab_type.get_kind() == TypeKind::Typedef {
+			if elab_type.get_canonical_type().get_kind() == TypeKind::ConstantArray {
+			    let canon_type = elab_type.get_canonical_type();
+			    let elem_type = canon_type.get_element_type().unwrap().get_canonical_type();
+			    group_size = canon_type.get_size().unwrap();
+			    size = get_type_size(elem_type);
+			    valname = elem_type.get_display_name();
+			} else if elab_type.get_canonical_type().get_kind() == TypeKind::Record {
+			    let canon_type = elab_type.get_canonical_type().get_declaration().unwrap();
+
+			    if elab_type.is_integer() == false {
+				isint = 0;
+			    }
+			    valname = canon_type.get_display_name().unwrap();
+			} else {
+			    valname = fld_type.get_display_name();
+			}
+		    } else {
+			valname = fld_type.get_display_name();
+		    }
+		} else {
+		    valname = fld_type.get_display_name();
+		}
+	    }
+	}
+
+	newfields.push(CStructField {
+	    fldtype: FieldType::Member,
+	    name: name_prefix.to_owned() + &fld.get_display_name().unwrap(),
+	    ftype: valname,
+	    is_array: group_size != 0xffffffff,
+	    size: group_size as u32,
+	    is_aligned: false,
+	    alignment: 0,
+	})
+    }
+    0
 }
 
 fn setup_parser<'a>(index: &'a Index, path: &str, prefix: &String) -> std::io::Result<TranslationUnit<'a>> {
@@ -350,12 +502,15 @@ fn add_file_to_cjson<'a>(tu: &TranslationUnit<'a>, json_output: &mut CJson) -> s
 	}
 	let tokens = define_.get_range().unwrap().tokenize();
 	// All the interesting ones have 4 tokens.
-	if tokens.len() != 4 {
+	if tokens.len() != 2 && tokens.len() != 4 {
 	    continue;
 	}
 
 	let mut vals: Vec<String> = Default::default();
-	if tokens[1].get_spelling() == "(" && tokens[3].get_spelling() == ")" {
+	if tokens.len() == 2 {
+	    ctype = CType::Value;
+	    vals.push(tokens[1].get_spelling());	
+	} else if tokens[1].get_spelling() == "(" && tokens[3].get_spelling() == ")" {
 	    ctype = CType::Value;
 	    vals.push(tokens[2].get_spelling());
 	} else if tokens[2].get_spelling() == ":" {
@@ -372,70 +527,60 @@ fn add_file_to_cjson<'a>(tu: &TranslationUnit<'a>, json_output: &mut CJson) -> s
 	});
     }
 
-    // Get the structs in this translation unit
-    let structs = tu.get_entity().get_children().into_iter().filter(|e| {
-        e.get_kind() == EntityKind::StructDecl
+    let enums = tu.get_entity().get_children().into_iter().filter(|e| {
+	e.get_kind() == EntityKind::EnumDecl
     }).collect::<Vec<_>>();
 
-    // Print information about the structs
-    for struct_ in structs {
-	let mut newfields : Vec<CStructField> = Default::default();
-
-        for field in struct_.get_children() {
-	    let mut is_array = false;
-	    let mut this_size = 0;
-	    let mut is_aligned = false;
-	    let mut alignment : usize = 0;
-
-	    if field.has_attributes() {
-		let attr = field.get_child(0).unwrap();
-		if attr.get_kind() == EntityKind::AlignedAttr {
-		    is_aligned = true;
-		    alignment = field.get_type().unwrap().get_alignof().unwrap();
-		}
+    for tenum in enums {
+	for child in tenum.get_children() {
+	    if child.get_display_name().unwrap() == "packed" {
+		continue;
 	    }
-	    let wrapped_size = field.get_type().unwrap().get_size();
-	    if wrapped_size.is_some() {
-		this_size = wrapped_size.unwrap();
-		if this_size > 0 {
-		    is_array = true;
-		}
-	    }
-	    newfields.push(CStructField {
-		name: field.get_name().unwrap(),
-		is_array,
-		size : this_size as u32,
-		ftype: field.get_type().unwrap().get_display_name(),
-		is_aligned,
-		alignment: alignment as u32,
+	    json_output.types.insert(child.get_display_name().unwrap(), CTypes {
+		ctype: CType::Value,
+		vals: vec!(child.get_enum_constant_value().unwrap().1.to_string()),
+		is_anon_struct: false,
+		fields: Default::default(),
 	    });
-        }
-
-	json_output.types.insert(
-	    struct_.get_name().unwrap(),
-	    CTypes {
-		ctype: CType::Struct,
-		fields: newfields,
-		is_anon_struct: struct_.is_anonymous(),
-		vals: vec!("".to_string()),
-	    }
-	    );
+	}
     }
 
     let typedefs = tu.get_entity().get_children().into_iter().filter(|e| {
         e.get_kind() == EntityKind::TypedefDecl
-    }).collect::<Vec<_>>();
+    }).collect::<Vec<_>>();    
 
-    // output typedef info to json
     for typedef in typedefs {
-	json_output.types.insert(
-	    typedef.get_name().unwrap(),
-	    CTypes {
-		ctype: CType::Typedef,
-		vals: vec!(typedef.get_typedef_underlying_type().unwrap().get_display_name()),
-		is_anon_struct: false,
-		fields: Default::default(),
-	    });
+	let under_type = typedef.get_typedef_underlying_type().unwrap();
+
+	if !under_type.is_elaborated().unwrap() {
+	    continue
+	}
+
+	let elab_type = under_type.get_elaborated_type().unwrap();
+	if elab_type.get_kind() != TypeKind::Record {
+	    continue
+	}
+
+	let mut newfields : Vec<CStructField> = Default::default();
+
+	let decl = elab_type.get_declaration().unwrap();
+	handle_c_parser_record(&mut newfields, decl.get_type().unwrap().get_fields().unwrap(), "");
+	let total_size = match decl.get_type().unwrap().get_sizeof() {
+	    Ok(x) => { x * 8 }
+	    Err(_) => { 0 }
+	};
+
+	if total_size == 0 {
+	    continue;
+	}
+	let thisname = typedef.get_display_name().unwrap();
+	json_output.types.insert(thisname,
+				 CTypes {
+				     ctype: CType::Struct,
+				     vals: vec!("".to_string()),
+				     is_anon_struct: false,
+				     fields: newfields,
+				 });
     }
 
     Ok(())

@@ -1,17 +1,29 @@
 use std::env;
 use std::fs::File;
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::io::{BufReader, BufRead, Write};
 use serde::{Deserialize, Serialize};
 
 const SPECIAL_TYPES:  [&str;8] = ["NvU32", "NvU64", "NvU16", "NvU8", "NvBool", "char", "NvHandle", "int"];
 
 #[derive(Serialize, Deserialize, Clone)]
+enum FieldType {
+    Member,
+    UnionStart,
+    UnionEnd,
+    StructStart,
+    StructEnd,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
 struct CStructField {
+    fldtype: FieldType,
     ftype: String,
     name: String,
     is_array: bool,
     size: u32,
+    is_aligned: bool,
+    alignment: u32,
 }
 
 #[derive(Serialize, Deserialize, Default, Clone)]
@@ -35,30 +47,71 @@ struct CTypes {
 #[derive(Serialize, Deserialize, Default)]
 struct CJson {
     version: String,
-    types: HashMap<String, CTypes>,
+    types: BTreeMap<String, CTypes>,
+}
+
+#[derive(Serialize, Deserialize, Default)]
+struct WantedJson {
+    structs: Vec<String>,
+    cmds: BTreeMap<String, Vec<String>>,
+    defines: Vec<String>,
 }
 
 fn generate_define(out_writer: &mut File, verstr: &str, defname: &String, define: &CTypes) -> std::io::Result<()> {
     if define.vals.len() == 2 {
-	writeln!(out_writer, "#define {}_{} {}:{}", defname, verstr, define.vals[0], define.vals[1])?;
+	writeln!(out_writer, "#define {} {}:{}", defname, define.vals[0], define.vals[1])?;
     } else {
-	writeln!(out_writer, "#define {}_{} {}", defname, verstr, define.vals[0])?;
+	writeln!(out_writer, "#define {} {}", defname, define.vals[0])?;
     }
     Ok(())
 }
 
 fn generate_struct(out_writer: &mut File, verstr: &str, strname: &String, cstruct: &CTypes) -> std::io::Result<()> {
-    writeln!(out_writer, "typedef struct {}_{} {{", strname, verstr)?;
-
+    writeln!(out_writer, "typedef struct {} {{", strname)?;
+    let mut cur_level = 1;
     for field in &cstruct.fields {
-	if field.is_array {
-	    let fname = field.ftype.split('[').collect::<Vec<_>>()[0];
-	    writeln!(out_writer, "    {}_{}    {}[{}];", fname, verstr, field.name, field.size)?;
-	} else {
-	    writeln!(out_writer, "    {}_{}    {};", field.ftype, verstr, field.name)?;
+	let mut indent: String = "".to_string();
+	for _ in 0..cur_level {
+	    indent += "    ";
+	}
+	match field.fldtype {
+	    FieldType::Member => {
+		if field.is_array {
+		    let fname = field.ftype.split('[').collect::<Vec<_>>()[0];
+		    writeln!(out_writer, "{}{}    {}[{}];", indent, fname, field.name, field.size)?;
+		} else {
+		    writeln!(out_writer, "{}{}    {};", indent, field.ftype, field.name)?;
+		}
+	    }
+	    FieldType::UnionStart => {
+		writeln!(out_writer, "{}union {{", indent);
+		cur_level += 1;
+	    }
+	    FieldType::StructStart => {
+		writeln!(out_writer, "{}struct {{", indent);
+		cur_level += 1;
+	    }
+	    FieldType::UnionEnd => {
+		cur_level -= 1;
+		let mut indent: String = "".to_string();
+		for _ in 0..cur_level {
+		    indent += "    ";
+		}
+		writeln!(out_writer, "{}}};", indent);
+
+	    }
+	    FieldType::StructEnd => {
+		cur_level -= 1;
+		let mut indent: String = "".to_string();
+		for _ in 0..cur_level {
+		    indent += "    ";
+		}		
+		writeln!(out_writer, "{}}};", indent);
+	    }
 	}
     }
-    writeln!(out_writer, "}} {}_{};", strname, verstr)?;
+    writeln!(out_writer, "}} {};", strname)?;
+    writeln!(out_writer, "");
     Ok(())
 }
 
@@ -75,6 +128,7 @@ fn main() -> std::io::Result<()> {
 
     let sym_list = File::open(args[2].clone())?;
     let sym_reader = BufReader::new(sym_list);
+    let sym_json: WantedJson = serde_json::from_reader(sym_reader)?;
 
     let mut out_file = File::create(args[3].clone())?;
 
@@ -86,27 +140,47 @@ fn main() -> std::io::Result<()> {
     writeln!(out_file, "#define __NV_VERSION__ {}", json_input.version)?;
     writeln!(out_file)?;
 
-    for base_type in SPECIAL_TYPES {
-	writeln!(out_file, "#define {}_{} {}", base_type, ver_str, base_type)?;
-    }
     writeln!(out_file)?;
-    for sym_name in sym_reader.lines() {
-	let name = sym_name.unwrap();
-	for (cname, ctype) in &json_input.types {
-	    if *cname == name {
-		let c_def_type = ctype.clone().ctype;
-
-		match c_def_type {
-		    CType::Struct => generate_struct(&mut out_file, &ver_str.as_str(), &cname, &ctype),
-		    CType::Value => generate_define(&mut out_file, &ver_str.as_str(), &cname, &ctype),
-		    CType::Typedef => generate_typedef(&mut out_file, &ver_str.as_str(), &cname, &ctype),
-		    CType::Unknown => todo!(),
-		}?;
-		writeln!(&out_file).unwrap();
-		break;
+    
+    for sym_struct in sym_json.structs {
+	for (name, ctype) in &json_input.types {
+	    if *name == sym_struct {
+		generate_struct(&mut out_file,
+				&ver_str.as_str(),
+				&name,
+				&ctype)?;
 	    }
 	}
     }
+    for cmdgroup in sym_json.cmds {
+	let basename : String = "NV".to_owned() + &cmdgroup.0;
+	for cmd in cmdgroup.1 {
+	    let cmdname = basename.clone() + "_CTRL_CMD_" + &cmd;
+	    let ctrlname = basename.clone() + "_CTRL_" + &cmd;
+
+	    for (defname, define) in &json_input.types {
+		if defname.starts_with(&cmdname) || defname.starts_with(&ctrlname) {
+		    match define.ctype {
+			CType::Value => { generate_define(&mut out_file,
+							  &ver_str.as_str(),
+							  &defname,
+							  &define)?;
+			}
+			_ => {}
+		    }
+		}
+	    }
+	}
+    }
+    for sym_define in sym_json.defines {
+	for (defname, define) in &json_input.types {
+	    if *defname == sym_define {
+		generate_define(&mut out_file, &ver_str.as_str(), &defname, &define);
+	    }
+	}
+    }
+    
+
     writeln!(out_file, "#endif")?;
     Ok(())
 }
