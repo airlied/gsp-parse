@@ -549,12 +549,23 @@ fn add_file_to_cjson<'a>(tu: &TranslationUnit<'a>, json_output: &mut CJson) -> s
 	    continue;
 	}
 	let tokens = define_.get_range().unwrap().tokenize();
-	// All the interesting ones have 4 tokens.
-	if tokens.len() != 2 && tokens.len() != 4 {
+	if tokens.len() != 2 && tokens.len() != 4 && tokens.len() != 6 && tokens.len() != 10 {
 	    continue;
 	}
 
 	let mut vals: Vec<String> = Default::default();
+	if tokens.len() == 10 &&
+	    tokens[1].get_spelling() == "(" && tokens[9].get_spelling() == ")" &&
+	    tokens[4].get_spelling() == "<<" && tokens[7].get_spelling() == "*" {
+		ctype = CType::Value;
+		vals.push("(".to_owned() + &tokens[3].get_spelling() + "<<" + &tokens[5].get_spelling() + ") * " + &tokens[8].get_spelling());
+	    }
+	else if tokens.len() == 6 &&
+	    tokens[1].get_spelling() == "(" && tokens[5].get_spelling() == ")" &&
+	    tokens[3].get_spelling() == "<<" {
+		ctype = CType::Value;
+		vals.push(tokens[2].get_spelling() + "<<" + &tokens[4].get_spelling());
+	    }	
 	if tokens.len() == 2 {
 	    ctype = CType::Value;
 	    vals.push(tokens[1].get_spelling());
