@@ -77,7 +77,7 @@ fn generate_struct(out_writer: &mut File, verstr: &str, strname: &String, cstruc
 	match field.fldtype {
 	    FieldType::Member => {
 		if field.is_array {
-		    let fname = field.ftype.split('[').collect::<Vec<_>>()[0];
+		    let fname = &field.ftype;
 		    writeln!(out_writer, "{}{}    {}[{}];", indent, fname, field.name, field.size)?;
 		} else {
 		    writeln!(out_writer, "{}{}    {};", indent, field.ftype, field.name)?;
@@ -97,16 +97,35 @@ fn generate_struct(out_writer: &mut File, verstr: &str, strname: &String, cstruc
 		for _ in 0..cur_level {
 		    indent += "    ";
 		}
-		writeln!(out_writer, "{}}};", indent);
-
+		let arrstr = match field.is_array {
+		    true => { "[]" },
+		    false => { "" },
+		};
+		let mut extraspace = "";
+		if field.name != "" {
+		    extraspace = " ";
+		}
+		    
+		writeln!(out_writer, "{}}}{}{}{};", indent, extraspace, field.name, arrstr);	
 	    }
 	    FieldType::StructEnd => {
 		cur_level -= 1;
 		let mut indent: String = "".to_string();
 		for _ in 0..cur_level {
 		    indent += "    ";
+		}
+		let mut extraspace = "";
+		if field.name != "" {
+		    extraspace = " ";
 		}		
-		writeln!(out_writer, "{}}};", indent);
+		let arrstr = match field.is_array {
+		    true => { match field.size {
+			0xffffffff => { "[]" },
+			x => { &format!("[{}]", field.size) },
+		    }},
+		    false => { "" },
+		};
+		writeln!(out_writer, "{}}}{}{}{};", indent, extraspace, field.name, arrstr);
 	    }
 	}
     }
@@ -128,7 +147,7 @@ fn main() -> std::io::Result<()> {
 
     let sym_list = File::open(args[2].clone())?;
     let sym_reader = BufReader::new(sym_list);
-    let sym_json: WantedJson = serde_json::from_reader(sym_reader)?;
+    let sym_json: WantedJson = serde_json::from_reader(sym_reader)?;    
 
     let mut out_file = File::create(args[3].clone())?;
 
@@ -141,7 +160,14 @@ fn main() -> std::io::Result<()> {
     writeln!(out_file)?;
 
     writeln!(out_file)?;
-    
+
+    for sym_define in sym_json.defines {
+	for (defname, define) in &json_input.types {
+	    if *defname == sym_define {
+		generate_define(&mut out_file, &ver_str.as_str(), &defname, &define);
+	    }
+	}
+    }
     for sym_struct in sym_json.structs {
 	for (name, ctype) in &json_input.types {
 	    if *name == sym_struct {
@@ -170,15 +196,32 @@ fn main() -> std::io::Result<()> {
 		    }
 		}
 	    }
-	}
-    }
-    for sym_define in sym_json.defines {
-	for (defname, define) in &json_input.types {
-	    if *defname == sym_define {
-		generate_define(&mut out_file, &ver_str.as_str(), &defname, &define);
+
+	    let stname = ctrlname.clone() + "_PARAMS";
+	    println!("stname {}", stname);
+	    for (name, ctype) in &json_input.types {
+		if name == &stname {
+		    generate_struct(&mut out_file,
+				    &ver_str.as_str(),
+				    &name,
+				    &ctype);
+
+		}
 	    }
+	    let stname = cmdname.clone() + "_PARAMS";
+	    println!("stname {}", stname);
+	    for (name, ctype) in &json_input.types {
+		if name == &stname {
+		    generate_struct(&mut out_file,
+				    &ver_str.as_str(),
+				    &name,
+				    &ctype);
+
+		}
+	    }	    
 	}
     }
+
     
 
     writeln!(out_file, "#endif")?;

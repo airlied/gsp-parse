@@ -215,14 +215,76 @@ fn handle_c_parser_record(newfields: &mut Vec<CStructField>,
 			  name_prefix: &str) -> usize {
 //    println!("{:?}", record_fields);
     for fld in record_fields {
-	let fld_type = fld.get_type().unwrap();
-
+	let mut fld_type = fld.get_type().unwrap();
+	let mut incomplete_array = false;
+	let mut array_size = 0xffffffff;
+	let mut valname = "".to_string();
+	
 //	println!("{:?} {:?}", fld_type, fld_type.get_declaration());
+	if fld_type.get_kind() == TypeKind::IncompleteArray {
+	    //	    println!("{:?}", fld_type.get_element_type());
+	    
+	    fld_type = fld_type.get_element_type().unwrap();
+	    incomplete_array = true;
+	    array_size = 0;
+	    
+	}
+
+	if fld_type.get_kind() == TypeKind::ConstantArray {
+	    array_size = fld_type.get_size().unwrap();
+	    fld_type = fld_type.get_element_type().unwrap();
+	    valname = fld_type.get_display_name();
+	}
+
 	if fld_type.is_elaborated().unwrap() {
 	    if fld_type.get_elaborated_type().unwrap().get_kind() == TypeKind::Record {
-		
+		if fld_type.get_elaborated_type().unwrap().get_declaration().unwrap().get_kind() == EntityKind::UnionDecl {
+		    newfields.push(CStructField {
+			fldtype: FieldType::UnionStart,
+			ftype: "".to_string(),
+			name: fld.get_display_name().unwrap(),
+			is_array: false,
+			size: 0,
+			is_aligned: false,
+			alignment: 0
+		    });
+		}
+		if fld_type.get_elaborated_type().unwrap().get_declaration().unwrap().get_kind() == EntityKind::StructDecl {
+		    newfields.push(CStructField {
+			fldtype: FieldType::StructStart,
+			ftype: "".to_string(),
+			name: fld.get_display_name().unwrap(),
+			is_array: false,
+			size: 0,
+			is_aligned: false,
+			alignment: 0
+		    });
+		}
+
 		handle_c_parser_record(newfields,
-			      fld_type.get_elaborated_type().unwrap().get_fields().unwrap(), &(fld.get_display_name().unwrap() + "_"));
+				       fld_type.get_elaborated_type().unwrap().get_fields().unwrap(), "");
+		if fld_type.get_elaborated_type().unwrap().get_declaration().unwrap().get_kind() == EntityKind::StructDecl {
+		    newfields.push(CStructField {
+			fldtype: FieldType::StructEnd,
+			ftype: "".to_string(),
+			name: fld.get_display_name().unwrap(),			
+			is_array: incomplete_array || (array_size != 0xfffffffff),
+			size: array_size as u32,
+			is_aligned: false,
+			alignment: 0
+		    });
+		}
+		if fld_type.get_elaborated_type().unwrap().get_declaration().unwrap().get_kind() == EntityKind::UnionDecl {
+		    newfields.push(CStructField {
+			fldtype: FieldType::UnionEnd,
+			ftype: "".to_string(),
+			name: fld.get_display_name().unwrap(),
+			is_array: incomplete_array || array_size != 0xffffffff,
+			size: array_size as u32,
+			is_aligned: false,
+			alignment: 0
+		    });
+		}
 		continue;
 	    }
 	}
@@ -231,7 +293,7 @@ fn handle_c_parser_record(newfields: &mut Vec<CStructField>,
 		newfields.push(CStructField {
 		    fldtype: FieldType::UnionStart,
 		    ftype: "".to_string(),
-		    name: "".to_string(),
+		    name: fld.get_display_name().unwrap(),
 		    is_array: false,
 		    size: 0,
 		    is_aligned: false,
@@ -242,107 +304,78 @@ fn handle_c_parser_record(newfields: &mut Vec<CStructField>,
 		newfields.push(CStructField {
 		    fldtype: FieldType::StructStart,
 		    ftype: "".to_string(),
-		    name: "".to_string(),
+		    name: fld.get_display_name().unwrap(),					    
 		    is_array: false,
 		    size: 0,
 		    is_aligned: false,
 		    alignment: 0
 		});
-	    }	    
+	    }
 	    handle_c_parser_record(newfields, fld.get_type().unwrap().get_fields().unwrap(), "");//fld_type.get_display_name());
 	    if fld_type.get_declaration().unwrap().get_kind() == EntityKind::StructDecl {
 		newfields.push(CStructField {
 		    fldtype: FieldType::StructEnd,
 		    ftype: "".to_string(),
 		    name: "".to_string(),
-		    is_array: false,
-		    size: 0,
+		    is_array: incomplete_array || array_size != 0xffffffff,
+		    size: array_size as u32,		    
 		    is_aligned: false,
 		    alignment: 0
 		});
-	    }	    	    
+	    }
 	    if fld_type.get_declaration().unwrap().get_kind() == EntityKind::UnionDecl {
 		newfields.push(CStructField {
 		    fldtype: FieldType::UnionEnd,
 		    ftype: "".to_string(),
 		    name: "".to_string(),
-		    is_array: false,
-		    size: 0,
+		    is_array: incomplete_array || array_size != 0xffffffff,
+		    size: array_size as u32,		    		    
 		    is_aligned: false,
 		    alignment: 0
 		});
-	    }	    
+	    }
 	    continue;
 	}
 
 	let mut size: usize;
-	let mut group_size: usize = 0xffffffff;
-	let mut valname = "".to_string();
 	let mut isint = 1;
-	if fld_type.get_kind() == TypeKind::ConstantArray {
-	    let elem_type = fld_type.get_element_type().unwrap();
-	    group_size = fld_type.get_size().unwrap();
-	    size = get_type_size(elem_type);
-	    valname = elem_type.get_display_name();
-	    if elem_type.is_integer() == false {
-		if elem_type.is_elaborated().unwrap() {
-		    let elab_type = elem_type.get_elaborated_type().unwrap();
-		    if elab_type.get_kind() == TypeKind::Typedef {
-			if elab_type.get_canonical_type().get_kind() == TypeKind::Record {
-			    let canon_type = elab_type.get_canonical_type().get_declaration().unwrap();
 
-			    if elab_type.is_integer() == false {
-				isint = 0;
-			    }
-			    valname = canon_type.get_display_name().unwrap();
-			} else {
-			    valname = elem_type.get_display_name();
-			}
-		    } else {
+	size = get_type_size(fld_type);
+	if fld_type.is_integer() == false {
+	    if fld_type.is_elaborated().unwrap() {
+		let elab_type = fld_type.get_elaborated_type().unwrap();
+
+		if elab_type.get_kind() == TypeKind::Typedef {
+		    if elab_type.get_canonical_type().get_kind() == TypeKind::ConstantArray {
+			let canon_type = elab_type.get_canonical_type();
+			let elem_type = canon_type.get_element_type().unwrap().get_canonical_type();
+			array_size = canon_type.get_size().unwrap();
+			size = get_type_size(elem_type);
 			valname = elem_type.get_display_name();
-		    }
-		} else {
-		    valname = elem_type.get_display_name();
-		}
-	    }
-	} else {
-	    size = get_type_size(fld_type);
-	    if fld_type.is_integer() == false {
-		if fld_type.is_elaborated().unwrap() {
-		    let elab_type = fld_type.get_elaborated_type().unwrap();
+		    } else if elab_type.get_canonical_type().get_kind() == TypeKind::Record {
+			let canon_type = elab_type.get_canonical_type().get_declaration().unwrap();
 
-		    if elab_type.get_kind() == TypeKind::Typedef {
-			if elab_type.get_canonical_type().get_kind() == TypeKind::ConstantArray {
-			    let canon_type = elab_type.get_canonical_type();
-			    let elem_type = canon_type.get_element_type().unwrap().get_canonical_type();
-			    group_size = canon_type.get_size().unwrap();
-			    size = get_type_size(elem_type);
-			    valname = elem_type.get_display_name();
-			} else if elab_type.get_canonical_type().get_kind() == TypeKind::Record {
-			    let canon_type = elab_type.get_canonical_type().get_declaration().unwrap();
-
-			    if elab_type.is_integer() == false {
-				isint = 0;
-			    }
-			    valname = canon_type.get_display_name().unwrap();
-			} else {
-			    valname = fld_type.get_display_name();
+			if elab_type.is_integer() == false {
+			    isint = 0;
 			}
+			valname = canon_type.get_display_name().unwrap();
 		    } else {
 			valname = fld_type.get_display_name();
 		    }
 		} else {
 		    valname = fld_type.get_display_name();
 		}
+	    } else {
+		valname = fld_type.get_display_name();
 	    }
 	}
-
+    
 	newfields.push(CStructField {
 	    fldtype: FieldType::Member,
 	    name: name_prefix.to_owned() + &fld.get_display_name().unwrap(),
 	    ftype: valname,
-	    is_array: group_size != 0xffffffff,
-	    size: group_size as u32,
+	    is_array: array_size != 0xffffffff,
+	    size: array_size as u32,
 	    is_aligned: false,
 	    alignment: 0,
 	})
@@ -509,7 +542,7 @@ fn add_file_to_cjson<'a>(tu: &TranslationUnit<'a>, json_output: &mut CJson) -> s
 	let mut vals: Vec<String> = Default::default();
 	if tokens.len() == 2 {
 	    ctype = CType::Value;
-	    vals.push(tokens[1].get_spelling());	
+	    vals.push(tokens[1].get_spelling());
 	} else if tokens[1].get_spelling() == "(" && tokens[3].get_spelling() == ")" {
 	    ctype = CType::Value;
 	    vals.push(tokens[2].get_spelling());
@@ -543,11 +576,17 @@ fn add_file_to_cjson<'a>(tu: &TranslationUnit<'a>, json_output: &mut CJson) -> s
 		fields: Default::default(),
 	    });
 	}
+	json_output.types.insert(tenum.get_display_name().unwrap(), CTypes {
+	    ctype: CType::Typedef,
+	    vals: vec!("u32".to_string()),
+	    is_anon_struct: false,
+	    fields: Default::default(),
+	});
     }
 
     let typedefs = tu.get_entity().get_children().into_iter().filter(|e| {
         e.get_kind() == EntityKind::TypedefDecl
-    }).collect::<Vec<_>>();    
+    }).collect::<Vec<_>>();
 
     for typedef in typedefs {
 	let under_type = typedef.get_typedef_underlying_type().unwrap();
@@ -597,6 +636,7 @@ const INCFILES: &'static [&'static str] = &[
     "stddef.h",
     "cpuopsys.h",
     "gpu/mem_mgr/mem_desc.h",
+    "vgpu/sdk-structures.h",
     "g_rpc-structures.h",
     "g_rpc-message-header.h",
     "objrpc.h",
