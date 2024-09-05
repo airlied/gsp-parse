@@ -163,7 +163,11 @@ fn main() -> std::io::Result<()> {
 
     for sym_define in sym_json.defines {
 	for (defname, define) in &json_input.types {
-	    if *defname == sym_define {
+	    if sym_define.chars().last().unwrap() == '*' {
+		if defname.starts_with(&sym_define.strip_suffix("*").unwrap()) {
+		    generate_define(&mut out_file, &ver_str.as_str(), &defname, &define);
+		}
+	    } else if *defname == sym_define {
 		generate_define(&mut out_file, &ver_str.as_str(), &defname, &define);
 	    }
 	}
