@@ -373,7 +373,8 @@ fn handle_c_parser_record(newfields: &mut Vec<CStructField>,
 			if elab_type.is_integer() == false {
 			    isint = 0;
 			}
-			valname = canon_type.get_display_name().unwrap();
+//			valname = canon_type.get_display_name().unwrap();
+			valname = elab_type.get_display_name();
 		    } else {
 			valname = fld_type.get_display_name();
 		    }
