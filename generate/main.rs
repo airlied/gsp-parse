@@ -76,12 +76,21 @@ fn generate_struct(out_writer: &mut File, verstr: &str, strname: &String, cstruc
 	}
 	match field.fldtype {
 	    FieldType::Member => {
+		let mut alignedstr = "".to_string();
+		if field.is_aligned {
+		    alignedstr = format!(" __attribute__ ((__aligned__({})))", field.alignment);
+		}
 		if field.is_array {
 		    let fname = &field.ftype;
-		    writeln!(out_writer, "{}{}    {}[{}];", indent, fname, field.name, field.size)?;
+		    let mut fld_size_str = "".to_string();
+		    if field.size > 0 {
+			fld_size_str = format!("{}", field.size);
+		    }
+		    writeln!(out_writer, "{}{} {}[{}]{};", indent, fname, field.name, fld_size_str, alignedstr)?;
 		} else {
-		    writeln!(out_writer, "{}{}    {};", indent, field.ftype, field.name)?;
+		    writeln!(out_writer, "{}{} {}{};", indent, field.ftype, field.name, alignedstr)?;
 		}
+		
 	    }
 	    FieldType::UnionStart => {
 		writeln!(out_writer, "{}union {{", indent);

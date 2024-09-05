@@ -219,6 +219,8 @@ fn handle_c_parser_record(newfields: &mut Vec<CStructField>,
 	let mut incomplete_array = false;
 	let mut array_size = 0xffffffff;
 	let mut valname = "".to_string();
+	let mut is_aligned = false;
+	let mut aligned_val = 0;
 	
 //	println!("{:?} {:?}", fld_type, fld_type.get_declaration());
 	if fld_type.get_kind() == TypeKind::IncompleteArray {
@@ -268,7 +270,7 @@ fn handle_c_parser_record(newfields: &mut Vec<CStructField>,
 			fldtype: FieldType::StructEnd,
 			ftype: "".to_string(),
 			name: fld.get_display_name().unwrap(),			
-			is_array: incomplete_array || (array_size != 0xfffffffff),
+			is_array: incomplete_array || array_size != 0xffffffff,
 			size: array_size as u32,
 			is_aligned: false,
 			alignment: 0
@@ -341,6 +343,19 @@ fn handle_c_parser_record(newfields: &mut Vec<CStructField>,
 	let mut isint = 1;
 
 	size = get_type_size(fld_type);
+	if fld.has_attributes() {
+	    let aligned = fld.get_children().into_iter().filter(|attr| {
+		attr.get_kind() == EntityKind::AlignedAttr
+	    }).collect::<Vec<_>>();
+
+	    if (aligned.len() > 0) {
+		// Finding alignment with libclang is difficult, I tried tokenise
+		// but failed.
+		// Assume 8 here
+		is_aligned = true;
+		aligned_val = 8;
+	    }
+	}
 	if fld_type.is_integer() == false {
 	    if fld_type.is_elaborated().unwrap() {
 		let elab_type = fld_type.get_elaborated_type().unwrap();
@@ -376,8 +391,8 @@ fn handle_c_parser_record(newfields: &mut Vec<CStructField>,
 	    ftype: valname,
 	    is_array: array_size != 0xffffffff,
 	    size: array_size as u32,
-	    is_aligned: false,
-	    alignment: 0,
+	    is_aligned: is_aligned,
+	    alignment: aligned_val,
 	})
     }
     0
