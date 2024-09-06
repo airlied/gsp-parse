@@ -624,6 +624,17 @@ fn add_file_to_cjson<'a>(tu: &TranslationUnit<'a>, json_output: &mut CJson) -> s
 
 	let elab_type = under_type.get_elaborated_type().unwrap();
 	if elab_type.get_kind() != TypeKind::Record {
+//	    println!("typedef {:?} {:?}", typedef, under_type);
+
+	    if elab_type.get_kind() != TypeKind::Enum {
+		json_output.types.insert(typedef.get_display_name().unwrap(),
+					 CTypes {
+					     ctype: CType::Typedef,
+					     vals: vec!(elab_type.get_display_name()),
+					     is_anon_struct: false,
+					     fields: Default::default(),
+					 });
+	    }
 	    continue
 	}
 

@@ -67,7 +67,9 @@ fn generate_define(out_writer: &mut File, verstr: &str, defname: &String, define
 }
 
 fn generate_struct(out_writer: &mut File, verstr: &str, strname: &String, cstruct: &CTypes) -> std::io::Result<()> {
-    writeln!(out_writer, "typedef struct {} {{", strname)?;
+    if cstruct.fields.len() > 0 {
+	writeln!(out_writer, "typedef struct {} {{", strname)?;
+    }
     let mut cur_level = 1;
     for field in &cstruct.fields {
 	let mut indent: String = "".to_string();
@@ -138,8 +140,10 @@ fn generate_struct(out_writer: &mut File, verstr: &str, strname: &String, cstruc
 	    }
 	}
     }
-    writeln!(out_writer, "}} {};", strname)?;
-    writeln!(out_writer, "");
+    if cstruct.fields.len() > 0 {
+	writeln!(out_writer, "}} {};", strname)?;
+	writeln!(out_writer, "");
+    }
     Ok(())
 }
 
