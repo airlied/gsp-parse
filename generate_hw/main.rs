@@ -1,6 +1,6 @@
 use std::env;
 use std::fs::File;
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::io::{BufReader, BufRead, Write};
 use serde::{Deserialize, Serialize};
 
