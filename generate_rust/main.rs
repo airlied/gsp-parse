@@ -114,12 +114,12 @@ fn emit_hw_struct(json_input: &HWJson, out_file: &mut File, sym_struct: String) 
 	    writeln!(out_file, "}}")?;
 	    writeln!(out_file, "")?;
 	    writeln!(out_file, "impl<'s> s_{}<'s> {{", sym_struct)?;
-	    writeln!(out_file, "    pub const fn str_size() -> usize {{")?;
+	    writeln!(out_file, "    pub(crate) const fn str_size() -> usize {{")?;
 	    writeln!(out_file, "        {}", structinfo.total_size / 8)?;
 	    writeln!(out_file, "    }}")?;
-	    writeln!(out_file, "    pub fn new(ptr: *mut u8) -> Self {{ Self {{")?;
+	    writeln!(out_file, "    pub(crate) fn new(ptr: *mut u8) -> Self {{ Self {{")?;
 	    writeln!(out_file, "        ptr,")?;
-	    writeln!(out_file, "        store: unsafe {{ std::slice::from_raw_parts_mut(ptr, {}) }},", structinfo.total_size / 8)?;
+	    writeln!(out_file, "        store: unsafe {{ core::slice::from_raw_parts_mut(ptr, {}) }},", structinfo.total_size / 8)?;
 	    writeln!(out_file, "    }} }}")?;
 	    writeln!(out_file, "")?;
 	    for fld in &structinfo.fields {
@@ -139,10 +139,10 @@ fn emit_hw_struct(json_input: &HWJson, out_file: &mut File, sym_struct: String) 
 		    writeln!(out_file, "")?;
 
 		    if fld.group_len != 0xffffffff {
-			writeln!(out_file, "    pub fn new_S_{}(&mut self, idx: isize) -> s_{}<'s> {{", fld.name, fld.val_type)?;
+			writeln!(out_file, "    pub(crate) fn new_S_{}(&mut self, idx: isize) -> s_{}<'s> {{", fld.name, fld.val_type)?;
 			writeln!(out_file, "        s_{}::new(unsafe {{ self.ptr.byte_offset(idx * {} + {}) }})", fld.val_type, fld.size / 8, fld.start / 8)?;
 		    } else {
-			writeln!(out_file, "    pub fn new_S_{}(&mut self) -> s_{}<'s> {{", fld.name, fld.val_type)?;
+			writeln!(out_file, "    pub(crate) fn new_S_{}(&mut self) -> s_{}<'s> {{", fld.name, fld.val_type)?;
 			writeln!(out_file, "        s_{}::new(unsafe {{ self.ptr.byte_offset({}) }})", fld.val_type, fld.start / 8)?;
 		    }
 		    writeln!(out_file, "    }}")?;
@@ -155,19 +155,19 @@ fn emit_hw_struct(json_input: &HWJson, out_file: &mut File, sym_struct: String) 
 		    fld_name = "r".to_string() + &fld.name;
 		}
 		if fld.group_len != 0xffffffff {
-		    writeln!(out_file, "    pub fn {}(self, fld: [{}; {}]) -> Self {{", fld_name, fld_type_name, fld.group_len)?;
+		    writeln!(out_file, "    pub(crate) fn {}(self, fld: [{}; {}]) -> Self {{", fld_name, fld_type_name, fld.group_len)?;
 
 		    writeln!(out_file, "        let byte_data: Vec<u8> = fld.iter().flat_map(|&x| x.to_le_bytes()).collect();")?;
 		    writeln!(out_file, "        self.store[{}..{}].copy_from_slice(&byte_data);", fld.start / 8, (fld.start + (fld.size * fld.group_len)) / 8)?;
 		    writeln!(out_file, "    self }}")?;
 
-		    writeln!(out_file, "    pub fn set_{}(&mut self, fld: [{}; {}]) {{", fld_name, fld_type_name, fld.group_len)?;
+		    writeln!(out_file, "    pub(crate) fn set_{}(&mut self, fld: [{}; {}]) {{", fld_name, fld_type_name, fld.group_len)?;
 
 		    writeln!(out_file, "        let byte_data: Vec<u8> = fld.iter().flat_map(|&x| x.to_le_bytes()).collect();")?;
 		    writeln!(out_file, "        self.store[{}..{}].copy_from_slice(&byte_data);", fld.start / 8, (fld.start + (fld.size * fld.group_len)) / 8)?;
 		    writeln!(out_file, "    }}")?;
 
-		    writeln!(out_file, "    pub fn get_{}(&mut self) -> [{}; {}] {{", fld_name, fld_type_name, fld.group_len)?;
+		    writeln!(out_file, "    pub(crate) fn get_{}(&mut self) -> [{}; {}] {{", fld_name, fld_type_name, fld.group_len)?;
 		    writeln!(out_file, "        let mut array = [0{}; {}];", fld_type_name, fld.group_len)?;
 		    writeln!(out_file, "        for (i, chunk) in self.store[{}..{}].chunks_exact({}).enumerate() {{", fld.start / 8, (fld.start + (fld.size * fld.group_len)) / 8, fld.size / 8)?;
 		    writeln!(out_file, "            array[i] = {}::from_le_bytes(chunk.try_into().unwrap());", fld_type_name)?;
@@ -175,16 +175,16 @@ fn emit_hw_struct(json_input: &HWJson, out_file: &mut File, sym_struct: String) 
 		    writeln!(out_file, "        array")?;
 		    writeln!(out_file, "    }}")?;
 		} else {
-		    writeln!(out_file, "    pub fn {}(self, fld: {}) -> Self {{", fld_name, fld_type_name)?;
+		    writeln!(out_file, "    pub(crate) fn {}(self, fld: {}) -> Self {{", fld_name, fld_type_name)?;
 		    writeln!(out_file, "        self.store[{}..{}].copy_from_slice(&u{}::to_le_bytes(fld));", fld.start / 8, (fld.start + fld.size) / 8, fld.size)?;
 		    writeln!(out_file, "    self }}")?;
 
 		    writeln!(out_file, "")?;
-		    writeln!(out_file, "    pub fn get_{}(&self) -> {} {{", fld_name, fld_type_name)?;
+		    writeln!(out_file, "    pub(crate) fn get_{}(&self) -> {} {{", fld_name, fld_type_name)?;
 		    writeln!(out_file, "        u{}::from_le_bytes(self.store[{}..{}].try_into().unwrap())", fld.size, fld.start / 8, (fld.start + fld.size) / 8)?;
 		    writeln!(out_file, "    }}")?;
 
-		    writeln!(out_file, "    pub fn set_{}(&mut self, fld: {}) {{", fld_name, fld_type_name)?;
+		    writeln!(out_file, "    pub(crate) fn set_{}(&mut self, fld: {}) {{", fld_name, fld_type_name)?;
 		    writeln!(out_file, "        self.store[{}..{}].copy_from_slice(&u{}::to_le_bytes(fld));", fld.start / 8, (fld.start + fld.size) / 8, fld.size)?;
 		    writeln!(out_file, "    }}")?;
 		}
