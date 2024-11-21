@@ -157,13 +157,21 @@ fn emit_hw_struct(json_input: &HWJson, out_file: &mut File, sym_struct: String) 
 		if fld.group_len != 0xffffffff {
 		    writeln!(out_file, "    pub(crate) fn {}(self, fld: [{}; {}]) -> Self {{", fld_name, fld_type_name, fld.group_len)?;
 
-		    writeln!(out_file, "        let byte_data: Vec<u8> = fld.iter().flat_map(|&x| x.to_le_bytes()).collect();")?;
+		    writeln!(out_file, "        let mut byte_data = [0u8; {}];", fld.group_len * (fld.size / 8))?;
+		    writeln!(out_file, "        for i in 0..{} {{", fld.group_len)?;
+		    writeln!(out_file, "            let bytes = fld[i].to_le_bytes();")?;
+		    writeln!(out_file, "            byte_data[(i * {})..((i + 1) * {})].copy_from_slice(&bytes);", fld.size / 8, fld.size / 8)?;
+		    writeln!(out_file, "        }}")?;
 		    writeln!(out_file, "        self.store[{}..{}].copy_from_slice(&byte_data);", fld.start / 8, (fld.start + (fld.size * fld.group_len)) / 8)?;
 		    writeln!(out_file, "    self }}")?;
 
 		    writeln!(out_file, "    pub(crate) fn set_{}(&mut self, fld: [{}; {}]) {{", fld_name, fld_type_name, fld.group_len)?;
 
-		    writeln!(out_file, "        let byte_data: Vec<u8> = fld.iter().flat_map(|&x| x.to_le_bytes()).collect();")?;
+		    writeln!(out_file, "        let mut byte_data = [0u8; {}];", fld.group_len * (fld.size / 8))?;
+		    writeln!(out_file, "        for i in 0..{} {{", fld.group_len)?;
+		    writeln!(out_file, "            let bytes = fld[i].to_le_bytes();")?;
+		    writeln!(out_file, "            byte_data[(i * {})..((i + 1) * {})].copy_from_slice(&bytes);", fld.size / 8, fld.size / 8)?;
+		    writeln!(out_file, "        }}")?;
 		    writeln!(out_file, "        self.store[{}..{}].copy_from_slice(&byte_data);", fld.start / 8, (fld.start + (fld.size * fld.group_len)) / 8)?;
 		    writeln!(out_file, "    }}")?;
 
