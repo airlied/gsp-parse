@@ -220,11 +220,17 @@ fn main() -> std::io::Result<()> {
     writeln!(out_file, "#![allow(non_snake_case)]")?;
     writeln!(out_file, "#![allow(dead_code)]")?;
     writeln!(out_file, "#![allow(non_camel_case_types)]")?;
+    writeln!(out_file, "#![allow(unused)]")?;
+    writeln!(out_file, "#![allow(non_upper_case_globals)]")?;
     writeln!(out_file)?;
 
     for sym_define in sym_json.defines {
 	for (defname, define) in &json_input.defines {
-	    if *defname == sym_define {
+	    if sym_define.chars().last().unwrap() == '*' {
+		if defname.starts_with(&sym_define.strip_suffix("*").unwrap()) {
+		    generate_define(&mut out_file, &defname, &define);
+		}
+	    } else if *defname == sym_define {
 		match define.hwtype {
 		    HWDefineType::Value => generate_define(&mut out_file, &defname, define),
 		    HWDefineType::Unknown => todo!(),

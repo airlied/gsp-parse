@@ -113,16 +113,40 @@ fn handle_record(base_offset: usize,
 		 newfields: &mut Vec<HWStructField>,
 		 record_fields: Vec<Entity>,
 		 name_prefix: &str) -> usize {
+//    println!("handle_record {:?}", record_fields);    
     let mut end_offset = base_offset;
     for fld in record_fields {
-	let fld_type = fld.get_type().unwrap();
+	let mut fld_type = fld.get_type().unwrap();
+	let mut group_size: usize = 0xffffffff;
+	let mut valname = "".to_string();
 	let this_base_offset = base_offset + fld.get_offset_of_field().unwrap();
 
+//	println!("fld_type {:?}", fld_type);
+	if fld_type.get_kind() == TypeKind::ConstantArray {
+	    group_size = fld_type.get_size().unwrap();
+	    fld_type = fld_type.get_element_type().unwrap();
+	    valname = fld_type.get_display_name();
+	}
+	
 	if fld_type.is_elaborated().unwrap() {
+
 	    if fld_type.get_elaborated_type().unwrap().get_kind() == TypeKind::Record {
-		handle_record(this_base_offset, newfields,
-			      fld_type.get_elaborated_type().unwrap().get_fields().unwrap(), &(fld.get_display_name().unwrap() + "_"));
-		end_offset += fld_type.get_elaborated_type().unwrap().get_sizeof().unwrap();
+		let mut lc = 1;
+		if group_size != 0xffffffff && fld_type.get_elaborated_type().unwrap().get_declaration().unwrap().get_kind() == EntityKind::StructDecl {
+		    lc = group_size;
+		}
+
+		for l in 0..lc {
+		    let sz = fld_type.get_elaborated_type().unwrap().get_sizeof().unwrap();
+		    //		println!("field {}", fld.get_display_name().unwrap());
+		    let mut name = fld.get_display_name().unwrap() + "_";
+		    if lc > 1 {
+			name = fld.get_display_name().unwrap() + "_" + &l.to_string() + "_";
+		    }
+		    handle_record(this_base_offset + l * sz * 8, newfields,
+				  fld_type.get_elaborated_type().unwrap().get_fields().unwrap(), &name);
+		    end_offset += fld_type.get_elaborated_type().unwrap().get_sizeof().unwrap();
+		}
 		continue;
 	    }
 	}
@@ -133,13 +157,14 @@ fn handle_record(base_offset: usize,
 	}
 
 	let mut size: usize;
-	let mut group_size: usize = 0xffffffff;
-	let mut valname = "".to_string();
 	let mut isint = 1;
 	if fld_type.get_kind() == TypeKind::ConstantArray {
-	    let elem_type = fld_type.get_element_type().unwrap();
+	    let elem_type = fld_type.get_element_type().unwrap().get_canonical_type();
 	    group_size = fld_type.get_size().unwrap();
 	    size = get_type_size(elem_type);
+
+//	    println!("const array {:?} {} {}", elem_type, group_size, size);
+	    
 	    valname = elem_type.get_display_name();
 	    if elem_type.is_integer() == false {
 		if elem_type.is_elaborated().unwrap() {
@@ -756,7 +781,6 @@ fn main() -> std::io::Result<()> {
 		continue
 	    }
 	    let path = ent.path().to_str().unwrap();
-	    println!("parsing {:?}", path);
 
 	    if path != "/home/airlied/devel/open-gpu-kernel-modules//src/nvidia/inc/kernel/gpu/gsp/message_queue_priv.h" && path != "/home/airlied/devel/open-gpu-kernel-modules//src/nvidia/arch/nvalloc/common/inc/gsp/gsp_fw_wpr_meta.h" {
 //		continue
@@ -765,7 +789,10 @@ fn main() -> std::io::Result<()> {
 	    if path != "/home/airlied/devel/open-gpu-kernel-modules//src/nvidia/inc/kernel/gpu/gsp/gsp_fw_heap.h" {
 //		continue
 	    }
-
+	    if path != "/home/airlied/devel/gsp-parse/gitrepo/open-gpu-kernel-modules/src/common/sdk/nvidia/inc/ctrl/ctrl90f1.h" {
+//		continue
+	    }
+	    println!("parsing {:?}", path);
 
 	    let tu = setup_parser(&index, path, &args[2])?;
 	    add_file_to_cjson(&tu, &mut cjson_output)?;
