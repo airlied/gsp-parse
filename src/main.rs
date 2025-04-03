@@ -720,6 +720,7 @@ const INCPATHS: &'static [&'static str] = &[
     "src/nvidia/interface/",
     "src/nvidia/kernel/inc",
     "src/nvidia/arch/nvalloc/common/inc",
+    "src/nvidia/arch/nvalloc/common/inc/gsp",
 ];
 
 const DEFINES: &'static [&'static str] = &[
